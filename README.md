@@ -4,9 +4,50 @@ This repository contains the containerized and modularized workspace for a Phase
 
 ---
 
+## 🏗️ High-Level Architecture Overview (Point 8)
+
+The application follows a decoupled, API-centric architecture separating the client-side presentation layer from the server-side API services:
+
+```text
+                                       +-----------------------------------+
+                                       |            User Agent             |
+                                       |          (Web Browser)            |
+                                       +-----------------+-----------------+
+                                                         |  HTTP Requests
+                                                         v  (Port 3000)
++--------------------------------------------------------+--------------------------------------------------------+
+|                                              DOCKER ENVIRONMENT                                                 |
+|                                                                                                                 |
+|  +-----------------------------------------------------------------------------------------------------------+  |
+|  |                                            Frontend Container                                             |  |
+|  |                                          (React + TS + Vite)                                              |  |
+|  |                                                                                                           |  |
+|  |  +--------------------+      +--------------------+      +--------------------+      +-----------------+  |  |
+|  |  |  React Components  | <--> |  React Router v6   | <--> |  TanStack Query v5 | <--> |  Axios Client   |  |  |
+|  |  |   (UI / Views)     |      |  (Protected Rts)   |      |  (Server Caching)  |      | (JWT Intercept) |  |  |
+|  |  +--------------------+      +--------------------+      +--------------------+      +--------+--------+  |  |
+|  +-----------------------------------------------------------------------------------------------|-----------+  |
+|                                                                                                  |              |
+|                                                                                    REST API Calls| (Port 8000)  |
+|                                                                                    (Bearer Auth) |              |
+|                                                                                                  v              |
+|  +-----------------------------------------------------------------------------------------------+-----------+  |
+|  |                                            Backend Container                                              |  |
+|  |                                            (FastAPI + Python)                                             |  |
+|  |                                                                                                           |  |
+|  |     +-------------------------+         +-------------------------+         +-------------------------+   |  |
+|  |     |     FastAPI Routers     |  <---->  |     SQLModel (ORM)      |  <---->  |   SQLite Engine (DB)    |   |  |
+|  |     |      (Auth/CRUD routes) |         |  (Pydantic/SQLAlchemy)  |         | (clinical_trial.db)     |   |  |
+|  |     +-------------------------+         +-------------------------+         +-------------------------+   |  |
+|  +-----------------------------------------------------------------------------------------------------------+  |
++-----------------------------------------------------------------------------------------------------------------+
+```
+
+---
+
 ## 📁 Project Structure
 
-The repository follows a clean, modular layout to separate concerns between the backend services and the frontend client:
+The repository follows a clean, modular layout to separate concerns:
 
 ```text
 laboratorio/
@@ -55,67 +96,142 @@ laboratorio/
 │   ├── tsconfig.json         # Strict TypeScript compiler options
 │   └── Dockerfile            # Node 20 Slim development image
 ├── docker-compose.yml        # Multi-container local execution orchestrator
+├── run_tests.ps1             # PowerShell script to run all tests in Docker
+├── run_tests.sh              # Bash script to run all tests in Docker
 ├── .gitignore                # Git exclusions rules for local caches and databases
 └── README.md                 # Primary documentation (this file)
 ```
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Technologies Used & Choice Justifications (Point 3)
 
-*   **Backend**: Python 3.11, FastAPI (Lifespan events and Routing), SQLModel/SQLAlchemy (ORM compatible with Pydantic), SQLite (Local persistent DB), PyJWT (JSON Web Token security), Pytest (Automated test suites).
-*   **Frontend**: React 18, TypeScript, Vite (HMR and dev server), Tailwind CSS v3 (Utility classes), React Router v6 (Data routers), TanStack Query v5 (Server state caching and queries), Google Material Symbols.
-*   **Containers**: Docker and Docker Compose.
+### Backend
+*   **FastAPI & Python 3.11**: FastAPI was chosen due to its high execution performance, native async support, automated OpenAPI (Swagger) documentation, and built-in type validation via Pydantic.
+*   **SQLModel**: Combines SQLAlchemy (robust ORM) and Pydantic (data parsing/validation) into a single library, avoiding duplicated schemas and enhancing code cleanliness.
+*   **SQLite**: Handled as a self-contained local database file. Excellent choice for rapid prototyping, simplified local orchestration, and test isolation.
+*   **Pytest**: Used for API integration tests. Coupled with custom fixtures, it enables clean test setup/teardown.
+
+### Frontend
+*   **React 18 & TypeScript**: TypeScript enforces strict compilation-time types over the React components, reducing runtime errors and improving readability.
+*   **React Router v6**: Manages declarative nested routes, route guarding (protecting URLs from unauthorized access), and URL parameter synchronization.
+*   **TanStack Query v5 (React Query)**: Manages server-state synchronization. It abstracts loading, error states, and caches API responses automatically, ensuring immediate data rendering.
+*   **Axios**: Chosen over the fetch API due to its clean request/response interceptor capability, which automatically appends authorization tokens to requests.
 
 ---
 
-## 🚀 How to Run the Application
+## 🚀 How to Run the Application (Point 1)
 
-The entire application runs inside Docker. Both the frontend client and backend API services are orchestrated together using Docker Compose.
+The entire application is containerized. Both services are orchestrated using Docker Compose.
 
 ### Prerequisites
-*   Ensure **Docker Desktop** is installed and running.
+*   Ensure **Docker Desktop** is installed and running on your system.
 
----
-
-### Step 1: Spin Up the Stack
+### Running with Docker Compose
 Run the following command in the project root directory:
 ```bash
 docker-compose up -d --build
 ```
-This builds both images and runs the containers in the background:
+This builds both images and boots up the containers in the background:
 *   **Frontend Client**: Accessible at `http://localhost:3000`
 *   **Backend API**: Accessible at `http://localhost:8000`
-*   *Health check endpoint:* `http://localhost:8000/health` (verify database connectivity).
+*   *Health check endpoint:* `http://localhost:8000/health` (verify DB connectivity).
 
 > [!TIP]
-> **Dependency updates inside Docker:**
-> If you install new packages or change dependencies in the host `package.json` files, make sure to tear down old volumes before rebuilding:
+> **Dependency Updates inside Docker:**
+> If you install new packages on the host, clear the cached Docker volumes before building to prevent caching outdated `node_modules`:
 > ```bash
 > docker-compose down -v
 > docker-compose up -d --build
 > ```
-> This clears cached anonymous volumes (like `/app/node_modules`) and reinstalls fresh dependencies.
 
 ---
 
-## 🧪 How to Run Tests
+## 🧪 How to Run Tests (Point 2)
 
-The backend features an automated test suite validating the API health, JWT login flow, and CRUD operations (authorized vs. unauthorized routes).
+We provide automated test suites for both frontend and backend.
 
-### Isolated Test Database
-The test execution is completely isolated from local development data. A pytest session-scoped fixture in [conftest.py](file:///c:/personal/laboratorio/backend/app/conftest.py) redirects all database writes to a temporary SQLite file (`test_clinical_trial.db`) and destroys it cleanly when the test session finishes.
+### Running Both Suites (Unified Script)
+You can run the entire project's tests consecutively using the cross-platform scripts in the project root:
 
-To run the test suite inside the running Docker container:
+*   **On Windows (PowerShell):**
+    ```powershell
+    .\run_tests.ps1
+    ```
+*   **On Linux / macOS (Bash):**
+    ```bash
+    chmod +x run_tests.sh
+    ./run_tests.sh
+    ```
+
+### Running Individual Suites
+
+#### Backend Tests (Pytest with isolated DB)
+Backend tests execute inside Docker against an isolated SQLite file (`test_clinical_trial.db`), which is automatically set up, seeded, and destroyed on each test session.
 ```bash
 docker exec -e PYTHONPATH=. laboratorio-backend-1 pytest
 ```
+
+#### Frontend Tests (Jest)
+Frontend tests use Jest inside the container to validate component behavior and sanity rules.
+```bash
+docker exec laboratorio-frontend-1 npm run test
+```
+
+---
+
+## 📋 Completed vs. Skipped Scope (Point 4)
+
+### Completed Scope
+*   **Complete RESTful API**: Implemented auth endpoints (`/login`, `/refresh`) and participant CRUD endpoints (`/participants`) with Pydantic type validation and error handling.
+*   **Modular SPA Frontend**: Refactored monolithic Stitch mockups into a structured React application containing routing, context authentication, API services, custom hooks, and pages.
+*   **Access Guards**: Created a `ProtectedRoute` component to intercept accesses to dashboards and details modals, validating JWTs.
+*   **Details Modal with Editing**: Designed a detail view modal for individual participants that allows real-time edits, syncing changes using React Query mutations.
+*   **Isolated Testing Environment**: Configured a `conftest.py` setup to isolate test data in a separate SQLite database file.
+*   **Multi-container Orchestration**: Set up `docker-compose.yml` to build and serve the application globally.
+*   **Unified Testing Scripts**: Created root PowerShell and Bash scripts to run both test suites in one step.
+
+### Skipped Scope
+*   **Dynamic Metrics Aggregations**: The visual charts and KPIs on the Dashboard (e.g., the Enrollment Trend bar chart, Diversity Index circle, and Retention Rate metric) utilize the static mockup structures generated by Google Stitch. They are not dynamically computed from live database records as the backend does not expose metrics/analytics aggregation endpoints in this version.
+
+---
+
+## ⚖️ Architectural Decisions & Trade-offs (Point 6)
+
+*   **SQLite over PostgreSQL**: SQLite was selected to facilitate immediate setup and avoid hosting database engines. In production, we would switch the `DATABASE_URL` config to PostgreSQL in `docker-compose.yml` since the ORM (SQLModel) supports it out of the box.
+*   **Stateless JWT Sessions**: Authentications are managed statelessly using short-lived JWT access tokens and database-tracked refresh tokens. This is highly scalable but requires clients to securely handle tokens (currently stored in `localStorage` for simplicity).
+*   **Client-Side Filtering per Page**: Search filtering is done client-side over the paginated records fetched. This provides high responsiveness but is limited to the current visible page. In a larger-scale application, search terms would be passed as query arguments to a search backend database query.
+
+---
+
+## 🔮 Future Improvements & Roadmap (Point 5)
+
+If given more time, we would implement the following production-ready features:
+1. **Metrics with Prometheus**: Expose a `/metrics` route in FastAPI via `prometheus-client` to monitor response latency, error rates, and resource utilization.
+2. **Distributed Tracing with OpenTelemetry**: Instrument FastAPI and Axios endpoints to dispatch traces to collectors (Jaeger or AWS X-Ray) for end-to-end latency analysis.
+3. **Structured Logging (JSON)**: Replace standard python logging formatters with `structlog` to output structured JSON logs, optimizing ingestion into aggregators like Datadog, Kibana, or Grafana Loki.
+4. **Third-Party Identity Provider (IdP)**: Replace local credentials and token issuance with an OAuth2/OIDC-compliant provider like Auth0 or Keycloak.
+
+---
+
+## 🤖 AI Collaboration & Prompts (Point 7)
+
+This project was built using collaboration between two Google artificial intelligence platforms:
+
+1.  **Google Stitch (Design AI)**:
+    *   **Role**: Generated the high-fidelity mockups, visual assets, layouts, responsive sidebars, custom scrollbars, and color themes.
+2.  **Antigravity (Agentic Coding AI by Google DeepMind)**:
+    *   **Role**: Assisted in monorepo setup, modularized the monolithic frontend code into React pages, custom hooks, and context stores, implemented JWT endpoint security, created the isolated pytest database lifecycle, and wrote the unified test runner scripts.
+
+### Prompts that guided the AI Assistant:
+*   *"Write a pytest conftest.py file that overrides the FastAPI application's database configuration to use a temporary SQLite file named test_clinical_trial.db during test runs. Ensure all active engine connections are disposed and the temporary file is deleted after the tests complete to prevent file locking on Windows."*
+*   *"Refactor the monolithic React client into a structured architecture using React Router v6. Share the user authentication token globally using a React Context. Implement TanStack Query (React Query) hooks to manage and fetch participant lists and details, including mutation invalidations to auto-refresh tables."*
 
 ---
 
 ## 🔑 Authentication & Protected Routes
 
-All participant CRUD routes (`/api/v1/participants`) are protected using **Bearer JWT** authorization headers.
+All participant CRUD routes are protected using **Bearer JWT** tokens.
 
 ### Pre-seeded Credentials
 *   **Email**: `researcher@clintrack.com`
@@ -129,7 +245,7 @@ All participant CRUD routes (`/api/v1/participants`) are protected using **Beare
      -H "Content-Type: application/json" \
      -d '{"email": "researcher@clintrack.com", "password": "password123"}'
    ```
-   *This yields a JSON response containing an `access_token`.*
+   *This returns a JSON containing the `access_token`.*
 
 2. **Step 2: Access Protected Resource**
    Send a GET request to the participants endpoint passing the token:
@@ -138,38 +254,3 @@ All participant CRUD routes (`/api/v1/participants`) are protected using **Beare
      -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
    ```
    *Omitting or providing an incorrect token results in a `403 Forbidden` response.*
-
----
-
-## 📈 Observability & Monitoring (Roadmap)
-
-For production deployment, the following observability enhancements are recommended:
-1. **Metrics with Prometheus**: Expose a `/metrics` route in FastAPI via `prometheus-client` to monitor response latency, error rates, and resource utilization.
-2. **Distributed Tracing with OpenTelemetry**: Instrument FastAPI and Axios endpoints to dispatch traces to collectors (Jaeger, Zipkin, or AWS X-Ray) for end-to-end latency analysis.
-3. **Structured Logging (JSON)**: Replace standard python logging formatters with `structlog` to output structured JSON logs, optimizing ingestion into aggregators like Datadog, Kibana, or Grafana Loki.
-
----
-
-## 🔄 CI/CD Pipeline (Roadmap)
-
-The proposed automation pipeline using GitHub Actions involves:
-1. **Linter & Type Checking**: Execute `flake8` / `black` for Python and `eslint` / `tsc` for React on pull request events.
-2. **Ephemeral Tests Run**: Launch `pytest` inside a containerized setup before merging.
-3. **Build & Push**: Package backend and frontend images and push them to registries like AWS ECR or Docker Hub.
-4. **Deploy**: Update target container tasks in Amazon ECS or Kubernetes using Infrastructure as Code (Terraform).
-
----
-
-## ⚖️ Architectural Decisions & Trade-offs
-
-*   **SQLite over PostgreSQL**: SQLite was selected to facilitate local development bootstrapping and avoid additional database service requirements.
-*   **Decoupled Frontend Structure**: The initial state-based routing was replaced with a robust SPA architecture featuring React Router and TanStack Query, separating UI components, routes, services, and types to guarantee long-term maintainability.
-*   **Static Identity Seed**: The boilerplate authenticates using hardcoded user accounts. In production, this would integrate with an external Identity Provider (IdP) like Auth0, Keycloak, or Cognito via OAuth2 / OIDC.
-
----
-
-## 🤖 AI Collaboration
-
-This codebase was developed in collaboration with two Google artificial intelligence platforms:
-*   **Google Stitch (Design AI)**: Generated the initial high-fidelity mockups, visual components, layout tokens, and UI styles.
-*   **Antigravity (Agentic Coding AI by Google DeepMind)**: Structured the monorepo workspace, modularized the monolithic React client into reusable pages and custom hooks (using React Router and TanStack Query), configured secure JWT session handling, and established the isolated pytest database lifecycle.
