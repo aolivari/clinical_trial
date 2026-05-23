@@ -1,4 +1,4 @@
-import logging
+import time
 from contextlib import asynccontextmanager
 from datetime import date
 from uuid import uuid4
@@ -10,13 +10,14 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import init_db, get_db, engine
+from app.core.logging import configure_logging, get_logger
 from app.models import Participant, User
 from app.core.security import hash_password
 from app.routers import auth_router, participants_router
 
-# Setup logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("clinical_trial_api")
+# Configure structured logging before anything else
+configure_logging()
+logger = get_logger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -133,6 +134,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ---------------------------------------------------------------------------
+# HTTP Request Logging Middleware
+# Logs: METHOD /path → status_code (elapsed ms)
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start = time.perf_counter()
+    response = await call_next(request)
+    elapsed_ms = (time.perf_counter() - start) * 1000
+    logger.info(
+        "%s %s → %d (%.1f ms)",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+    )
+    return response
 
 # Global Error Handling Middleware
 @app.exception_handler(Exception)

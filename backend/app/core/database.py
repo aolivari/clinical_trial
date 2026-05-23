@@ -4,7 +4,7 @@ from app.core.config import DATABASE_URL
 # connect_args={"check_same_thread": False} is required only for SQLite
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 
-engine = create_engine(DATABASE_URL, echo=True, connect_args=connect_args)
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
 
 def init_db():
     # Import models here to ensure they are registered with SQLModel's metadata

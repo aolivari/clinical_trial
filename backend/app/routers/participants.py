@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.core.database import get_db
+from app.core.logging import get_logger
 from app.core.security import get_current_user
 from app.crud.participant import (
     create_participant,
@@ -14,6 +15,8 @@ from app.crud.participant import (
     update_participant,
 )
 from app.schemas import ParticipantCreate, ParticipantResponse, ParticipantUpdate
+
+logger = get_logger(__name__)
 
 router = APIRouter(
     prefix="/api/v1/participants",
@@ -48,7 +51,9 @@ def register_participant(participant_in: ParticipantCreate, session: Session = D
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Participant with Subject ID '{participant_in.subject_id}' already exists",
         )
-    return create_participant(session, participant_in)
+    result = create_participant(session, participant_in)
+    logger.info("Participant created: subject_id='%s' id=%s", result.subject_id, result.participant_id)
+    return result
 
 
 @router.put("/{participant_id}", response_model=ParticipantResponse)
@@ -88,3 +93,4 @@ def remove_participant(participant_id: UUID, session: Session = Depends(get_db))
             detail=f"Participant with ID {participant_id} not found",
         )
     delete_participant(session, db_participant)
+    logger.info("Participant deleted: id=%s", participant_id)
