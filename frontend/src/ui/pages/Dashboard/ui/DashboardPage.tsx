@@ -7,7 +7,9 @@ export const DashboardPage: React.FC = () => {
     filteredParticipants,
     totalItems,
     isLoading,
+    metricsLoading,
     error,
+    metrics,
     selectedParticipantId,
     setSelectedParticipantId,
     handleExportData,
@@ -69,6 +71,70 @@ export const DashboardPage: React.FC = () => {
         </div>
       )}
 
+      {/* KPI Metric Cards — computed from live data */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-lg">
+        <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 p-lg flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[20px]">groups</span>
+            <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Total Enrolled</p>
+          </div>
+          <p className="text-2xl font-bold text-on-surface">{metricsLoading ? '—' : metrics?.total_participants ?? 0}</p>
+          <div className="flex gap-2 text-[10px]">
+            <span className="text-emerald-700 font-semibold">{metrics?.active_count ?? 0} active</span>
+            <span className="text-on-surface-variant">•</span>
+            <span className="text-purple-700 font-semibold">{metrics?.completed_count ?? 0} completed</span>
+            <span className="text-on-surface-variant">•</span>
+            <span className="text-red-700 font-semibold">{metrics?.withdrawn_count ?? 0} withdrawn</span>
+          </div>
+        </div>
+
+        <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 p-lg flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-emerald-600 text-[20px]">shield</span>
+            <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Retention Rate</p>
+          </div>
+          <p className="text-2xl font-bold text-on-surface">{metricsLoading ? '—' : `${metrics?.retention_rate ?? 0}%`}</p>
+          <p className="text-[10px] text-on-surface-variant">Non-withdrawn participants</p>
+        </div>
+
+        <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 p-lg flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-blue-600 text-[20px]">science</span>
+            <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Study Arms</p>
+          </div>
+          <div className="flex gap-3 items-baseline">
+            <div>
+              <p className="text-lg font-bold text-on-surface">{metricsLoading ? '—' : metrics?.treatment_count ?? 0}</p>
+              <p className="text-[9px] text-blue-700 font-semibold uppercase">Treatment</p>
+            </div>
+            <span className="text-outline text-sm">/</span>
+            <div>
+              <p className="text-lg font-bold text-on-surface">{metricsLoading ? '—' : metrics?.control_count ?? 0}</p>
+              <p className="text-[9px] text-slate-500 font-semibold uppercase">Control</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 p-lg flex flex-col gap-2">
+          <div className="flex items-center gap-2">
+            <span className="material-symbols-outlined text-tertiary text-[20px]">monitoring</span>
+            <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Demographics</p>
+          </div>
+          <p className="text-2xl font-bold text-on-surface">{metricsLoading ? '—' : `${metrics?.avg_age ?? 0} yrs`}</p>
+          <div className="flex gap-2 text-[10px]">
+            <span className="text-blue-700 font-semibold">{metrics?.male_count ?? 0}M</span>
+            <span className="text-on-surface-variant">•</span>
+            <span className="text-pink-700 font-semibold">{metrics?.female_count ?? 0}F</span>
+            {(metrics?.other_gender_count ?? 0) > 0 && (
+              <>
+                <span className="text-on-surface-variant">•</span>
+                <span className="text-slate-600 font-semibold">{metrics?.other_gender_count}O</span>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Main grids details */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
         
@@ -100,7 +166,7 @@ export const DashboardPage: React.FC = () => {
                       <td colSpan={5} className="text-center py-8 text-on-surface-variant">No participants registered yet.</td>
                     </tr>
                   ) : (
-                    filteredParticipants.slice(0, 3).map((p) => (
+                    filteredParticipants.slice(0, 5).map((p) => (
                       <tr key={p.participant_id} className="hover:bg-surface-variant/10 transition-colors">
                         <td className="px-lg py-4 font-data-mono font-bold">
                           <button 
@@ -152,19 +218,23 @@ export const DashboardPage: React.FC = () => {
             <div>
               <h5 className="font-headline-md text-headline-md font-bold mb-xs">Study Health</h5>
               <p className="font-body-md text-xs opacity-80 leading-normal">
-                Protocols are performing 14% above baseline regulatory and safety thresholds.
+                {metrics && metrics.retention_rate >= 80
+                  ? `Retention is strong at ${metrics.retention_rate}%. Protocols are performing above baseline thresholds.`
+                  : metrics
+                  ? `Retention at ${metrics.retention_rate}% — monitoring closely for improvement opportunities.`
+                  : 'Loading study health indicators...'}
               </p>
             </div>
             
             <div className="flex justify-between items-center bg-white/10 p-md rounded-lg mt-3 text-center">
               <div className="flex-1">
-                <p className="text-[9px] uppercase font-bold tracking-widest opacity-70">Efficiency</p>
-                <p className="text-lg font-bold">92.4%</p>
+                <p className="text-[9px] uppercase font-bold tracking-widest opacity-70">Retention</p>
+                <p className="text-lg font-bold">{metricsLoading ? '—' : `${metrics?.retention_rate ?? 0}%`}</p>
               </div>
               <div className="w-px h-8 bg-white/20"></div>
               <div className="flex-1">
-                <p className="text-[9px] uppercase font-bold tracking-widest opacity-70">Regulatory</p>
-                <p className="text-lg font-bold">CLEAR</p>
+                <p className="text-[9px] uppercase font-bold tracking-widest opacity-70">Completion</p>
+                <p className="text-lg font-bold">{metricsLoading ? '—' : `${metrics?.completion_rate ?? 0}%`}</p>
               </div>
             </div>
           </div>

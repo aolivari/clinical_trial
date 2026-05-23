@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useParticipantsQuery } from '../../../../hooks/useParticipants';
+import { useMetricsQuery } from '../../../../hooks/useMetrics';
 
 export const useDashboardPage = () => {
   const [searchParams] = useSearchParams();
@@ -8,6 +9,7 @@ export const useDashboardPage = () => {
 
   // Query participants (fetch the first page to get recent status)
   const { data, isLoading, error, refetch } = useParticipantsQuery(0, 10);
+  const { data: metrics, isLoading: metricsLoading } = useMetricsQuery();
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
 
   const handleExportData = () => {
@@ -26,7 +28,9 @@ export const useDashboardPage = () => {
     filteredParticipants,
     totalItems,
     isLoading,
+    metricsLoading,
     error,
+    metrics,
     searchTerm,
     selectedParticipantId,
     setSelectedParticipantId,

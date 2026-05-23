@@ -13,7 +13,7 @@ from app.infrastructure.database import init_db, get_db, engine
 from app.core.logging import configure_logging, get_logger
 from app.infrastructure import Participant, User
 from app.core.security import hash_password
-from app.presentation.api import auth_router, participants_router
+from app.presentation.api import auth_router, participants_router, metrics_router
 
 # Configure structured logging before anything else
 configure_logging()
@@ -128,7 +128,6 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5173",
-        "*"
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -207,3 +206,4 @@ async def health_check(session: Session = Depends(get_db)):
 # Register Routers
 app.include_router(auth_router)
 app.include_router(participants_router)
+app.include_router(metrics_router)

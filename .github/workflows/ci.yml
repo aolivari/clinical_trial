@@ -1,0 +1,100 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+env:
+  JWT_SECRET_KEY: ci_test_secret_key_not_for_production
+  ENVIRONMENT: development
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Backend: Lint + Test
+  # ---------------------------------------------------------------------------
+  backend:
+    name: Backend (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11"]
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('backend/requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run Pytest
+        env:
+          TESTING: "true"
+          PYTHONPATH: "."
+        run: pytest -v --tb=short
+
+  # ---------------------------------------------------------------------------
+  # Frontend: Lint + Test + Build
+  # ---------------------------------------------------------------------------
+  frontend:
+    name: Frontend (Node 20)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Jest tests
+        run: npm run test
+
+      - name: Build production bundle
+        run: npm run build
+
+  # ---------------------------------------------------------------------------
+  # Docker: Verify images build successfully
+  # ---------------------------------------------------------------------------
+  docker-build:
+    name: Docker Build Verification
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build Docker images
+        run: docker compose build
+
+      - name: Verify containers start
+        run: |
+          docker compose up -d
+          sleep 10
+          curl --fail http://localhost:8000/health || exit 1
+          docker compose down

@@ -22,7 +22,7 @@ def setup_test_database():
     SQLModel.metadata.create_all(engine)
     
     # Import client and enter its context to trigger FastAPI lifespan (which seeds the DB)
-    from app.test_main import client
+    from tests.test_main import client
     with client:
         yield
     
