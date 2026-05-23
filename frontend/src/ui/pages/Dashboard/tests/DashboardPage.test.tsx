@@ -83,7 +83,7 @@ describe("DashboardPage Component", () => {
 
     // Verify KPI values rendered from mock metrics
     expect(screen.getByText("6")).toBeInTheDocument(); // total_participants
-    expect(screen.getByText("83.3%")).toBeInTheDocument(); // retention_rate (one of them)
+    expect(screen.getAllByText("83.3%")[0]).toBeInTheDocument(); // retention_rate (one of them)
     expect(screen.getByText("44.8 yrs")).toBeInTheDocument(); // avg_age
   });
 
