@@ -264,6 +264,16 @@ def update_participant(
         )
     
     update_data = participant_in.model_dump(exclude_unset=True)
+    if "subject_id" in update_data and update_data["subject_id"] != db_participant.subject_id:
+        existing = session.exec(
+            select(Participant).where(Participant.subject_id == update_data["subject_id"])
+        ).first()
+        if existing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Participant with Subject ID {update_data['subject_id']} already exists"
+            )
+            
     for key, value in update_data.items():
         if key in ["study_group", "status", "gender"] and value is not None:
             setattr(db_participant, key, value.value)

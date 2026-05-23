@@ -51,6 +51,69 @@ export default function App() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
 
+  // Single Participant Retrieve state
+  const [selectedParticipant, setSelectedParticipant] = useState<Participant | null>(null);
+  const [detailsLoading, setDetailsLoading] = useState<boolean>(false);
+  const [detailsError, setDetailsError] = useState<string | null>(null);
+  const [showDetailsModal, setShowDetailsModal] = useState<boolean>(false);
+  const [isEditingDetails, setIsEditingDetails] = useState<boolean>(false);
+  const [editFormData, setEditFormData] = useState<ParticipantCreate>({
+    subject_id: '',
+    study_group: 'treatment',
+    enrollment_date: '',
+    status: 'active',
+    age: 35,
+    gender: 'F',
+  });
+
+  const handleViewParticipant = async (id: string) => {
+    try {
+      setDetailsLoading(true);
+      setDetailsError(null);
+      setIsEditingDetails(false); // Reset edit mode on view new
+      setShowDetailsModal(true);
+      
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await apiClient.get<Participant>(`/api/v1/participants/${id}`, { headers });
+      setSelectedParticipant(response.data);
+      setEditFormData({
+        subject_id: response.data.subject_id,
+        study_group: response.data.study_group,
+        enrollment_date: response.data.enrollment_date,
+        status: response.data.status,
+        age: response.data.age,
+        gender: response.data.gender,
+      });
+    } catch (err: any) {
+      setDetailsError(err.message || 'Failed to retrieve participant details.');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
+  const handleSaveParticipant = async () => {
+    if (!selectedParticipant) return;
+    try {
+      setDetailsLoading(true);
+      setDetailsError(null);
+      
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await apiClient.put<Participant>(
+        `/api/v1/participants/${selectedParticipant.participant_id}`, 
+        editFormData, 
+        { headers }
+      );
+      
+      setSelectedParticipant(response.data);
+      setParticipants(prev => prev.map(p => p.participant_id === selectedParticipant.participant_id ? response.data : p));
+      setIsEditingDetails(false);
+    } catch (err: any) {
+      setDetailsError(err.message || 'Failed to update participant details.');
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
   // Fetch participants
   const fetchParticipants = async () => {
     try {
@@ -153,7 +216,7 @@ export default function App() {
   const controlCount = participants.filter(p => p.study_group === 'control').length;
   const activeCount = participants.filter(p => p.status === 'active').length;
   const completedCount = participants.filter(p => p.status === 'completed').length;
-  const withdrawnCount = participants.filter(p => p.status === 'withdrawn').length;
+  // const withdrawnCount = participants.filter(p => p.status === 'withdrawn').length;
 
   const treatmentPercentage = totalParticipantsCount > 0 ? Math.round((treatmentCount / totalParticipantsCount) * 100) : 55;
   const controlPercentage = totalParticipantsCount > 0 ? Math.round((controlCount / totalParticipantsCount) * 100) : 45;
@@ -165,7 +228,7 @@ export default function App() {
 
   const maleCount = participants.filter(p => p.gender === 'M').length;
   const femaleCount = participants.filter(p => p.gender === 'F').length;
-  const otherCount = participants.filter(p => p.gender === 'Other').length;
+  // const otherCount = participants.filter(p => p.gender === 'Other').length;
 
   const malePercentage = totalParticipantsCount > 0 ? Math.round((maleCount / totalParticipantsCount) * 100) : 52;
   const femalePercentage = totalParticipantsCount > 0 ? Math.round((femaleCount / totalParticipantsCount) * 100) : 46;
@@ -637,7 +700,15 @@ export default function App() {
                           ) : (
                             participants.slice(0, 3).map((p) => (
                               <tr key={p.participant_id} className="hover:bg-surface-variant/10 transition-colors">
-                                <td className="px-lg py-4 font-data-mono font-bold text-primary">{p.subject_id}</td>
+                                <td className="px-lg py-4 font-data-mono font-bold">
+                                  <button 
+                                    onClick={() => handleViewParticipant(p.participant_id)}
+                                    className="text-primary hover:text-primary-container font-bold hover:underline transition-all text-left"
+                                    title="View participant details"
+                                  >
+                                    {p.subject_id}
+                                  </button>
+                                </td>
                                 <td className="px-lg py-4 text-on-surface-variant">{formatDateString(p.enrollment_date)}</td>
                                 <td className="px-lg py-4 text-on-surface-variant capitalize">
                                   <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
@@ -873,15 +944,24 @@ export default function App() {
                               {p.gender === 'Other' && 'Other'}
                             </td>
 
-                            {/* Actions delete */}
+                            {/* Actions */}
                             <td className="px-lg py-4 text-right">
-                              <button 
-                                onClick={() => handleDeleteParticipant(p.participant_id)}
-                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
-                                title="Delete subject"
-                              >
-                                <span className="material-symbols-outlined text-[18px]">delete</span>
-                              </button>
+                              <div className="flex items-center justify-end gap-1.5">
+                                <button 
+                                  onClick={() => handleViewParticipant(p.participant_id)}
+                                  className="text-slate-400 hover:text-primary p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+                                  title="View participant details"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">visibility</span>
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteParticipant(p.participant_id)}
+                                  className="text-slate-400 hover:text-red-500 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+                                  title="Delete subject"
+                                >
+                                  <span className="material-symbols-outlined text-[18px]">delete</span>
+                                </button>
+                              </div>
                             </td>
 
                           </tr>
@@ -1004,6 +1084,23 @@ export default function App() {
                     )}
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
+                      
+                      {/* Subject ID */}
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="subject_id">
+                          Subject ID <span className="text-error">*</span>
+                        </label>
+                        <input 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="subject_id"
+                          type="text"
+                          required
+                          placeholder="e.g. P007"
+                          value={formData.subject_id}
+                          onChange={e => setFormData(prev => ({ ...prev, subject_id: e.target.value }))}
+                        />
+                        <p className="text-[10px] text-on-surface-variant/60">Unique identifier as per trial protocol.</p>
+                      </div>
 
                       {/* Enrollment Date */}
                       <div className="space-y-1">
@@ -1217,6 +1314,248 @@ export default function App() {
             >
               Continue to Dashboard
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Participant Details Modal Overlay */}
+      {showDetailsModal && (
+        <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl max-w-md w-full overflow-hidden transform scale-100 transition-transform duration-300 border border-outline-variant/30">
+            {/* Modal Header */}
+            <div className="bg-slate-50 border-b border-outline-variant/30 px-xl py-lg flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-[20px]">account_box</span>
+                <span className="font-headline-md text-sm font-bold text-on-surface">Participant Details</span>
+              </div>
+              <button 
+                onClick={() => setShowDetailsModal(false)}
+                className="text-slate-400 hover:text-on-surface p-1 rounded-full hover:bg-slate-200 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[18px]">close</span>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-xl space-y-lg">
+              {detailsLoading ? (
+                <div className="flex flex-col items-center justify-center py-12 space-y-3">
+                  <span className="material-symbols-outlined animate-spin text-primary text-3xl">rotate_right</span>
+                  <p className="text-xs text-on-surface-variant font-medium">Fetching participant record from database...</p>
+                </div>
+              ) : detailsError ? (
+                <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded-lg flex items-start gap-2">
+                  <span className="material-symbols-outlined text-red-500 text-[18px]">error</span>
+                  <div>
+                    <p className="font-bold">Error retrieving details</p>
+                    <p className="opacity-90">{detailsError}</p>
+                  </div>
+                </div>
+              ) : selectedParticipant ? (
+                isEditingDetails ? (
+                  <div className="space-y-lg">
+                    {/* Subject ID Input */}
+                    <div className="space-y-1">
+                      <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_subject_id">
+                        Subject ID <span className="text-error">*</span>
+                      </label>
+                      <input 
+                        className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        id="edit_subject_id"
+                        type="text"
+                        required
+                        value={editFormData.subject_id}
+                        onChange={e => setEditFormData(prev => ({ ...prev, subject_id: e.target.value }))}
+                      />
+                    </div>
+
+                    {/* Age and Gender */}
+                    <div className="grid grid-cols-2 gap-md">
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_age">
+                          Age <span className="text-error">*</span>
+                        </label>
+                        <input 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="edit_age"
+                          type="number"
+                          required
+                          min="18"
+                          max="120"
+                          value={editFormData.age}
+                          onChange={e => setEditFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+                        />
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_gender">
+                          Gender <span className="text-error">*</span>
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="edit_gender"
+                          required
+                          value={editFormData.gender}
+                          onChange={e => setEditFormData(prev => ({ ...prev, gender: e.target.value as Gender }))}
+                        >
+                          <option value="M">Male (M)</option>
+                          <option value="F">Female (F)</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Group and Status */}
+                    <div className="grid grid-cols-2 gap-md">
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_study_group">
+                          Study Group <span className="text-error">*</span>
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="edit_study_group"
+                          required
+                          value={editFormData.study_group}
+                          onChange={e => setEditFormData(prev => ({ ...prev, study_group: e.target.value as StudyGroup }))}
+                        >
+                          <option value="treatment">Treatment</option>
+                          <option value="control">Control</option>
+                        </select>
+                      </div>
+
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_status">
+                          Status <span className="text-error">*</span>
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="edit_status"
+                          required
+                          value={editFormData.status}
+                          onChange={e => setEditFormData(prev => ({ ...prev, status: e.target.value as ParticipantStatus }))}
+                        >
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          <option value="withdrawn">Withdrawn</option>
+                        </select>
+                      </div>
+                    </div>
+
+                    {/* Enrollment Date */}
+                    <div className="space-y-1">
+                      <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_enrollment_date">
+                        Enrollment Date <span className="text-error">*</span>
+                      </label>
+                      <input 
+                        className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        id="edit_enrollment_date"
+                        type="date"
+                        required
+                        value={editFormData.enrollment_date}
+                        onChange={e => setEditFormData(prev => ({ ...prev, enrollment_date: e.target.value }))}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-lg">
+                    {/* Subject Identification & Primary Key */}
+                    <div className="flex items-center justify-between border-b border-outline-variant/20 pb-md">
+                      <div>
+                        <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Subject Identifier</p>
+                        <h3 className="font-display-lg text-lg font-bold text-primary font-data-mono">{selectedParticipant.subject_id}</h3>
+                      </div>
+                      <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                        selectedParticipant.status === 'active' 
+                          ? 'bg-green-50 text-green-800 border border-green-200' 
+                          : selectedParticipant.status === 'completed'
+                          ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                          : 'bg-red-50 text-red-800 border border-red-200'
+                      }`}>
+                        {selectedParticipant.status}
+                      </span>
+                    </div>
+
+                    {/* Metadata Grid */}
+                    <div className="grid grid-cols-2 gap-md">
+                      <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
+                        <p className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Study Group</p>
+                        <p className="text-xs font-semibold text-on-surface capitalize mt-0.5">{selectedParticipant.study_group}</p>
+                      </div>
+
+                      <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
+                        <p className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Enrollment Date</p>
+                        <p className="text-xs font-semibold text-on-surface mt-0.5">{formatDateString(selectedParticipant.enrollment_date)}</p>
+                      </div>
+
+                      <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
+                        <p className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Age Profile</p>
+                        <p className="text-xs font-semibold text-on-surface mt-0.5">{selectedParticipant.age} years old</p>
+                      </div>
+
+                      <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
+                        <p className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Gender</p>
+                        <p className="text-xs font-semibold text-on-surface mt-0.5">
+                          {selectedParticipant.gender === 'F' && 'Female (F)'}
+                          {selectedParticipant.gender === 'M' && 'Male (M)'}
+                          {selectedParticipant.gender === 'Other' && 'Other'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              ) : (
+                <p className="text-xs text-on-surface-variant text-center py-6">No participant selected.</p>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-50 border-t border-outline-variant/30 px-xl py-md flex justify-between items-center">
+              {isEditingDetails ? (
+                <>
+                  <button 
+                    onClick={() => {
+                      setIsEditingDetails(false);
+                      if (selectedParticipant) {
+                        setEditFormData({
+                          subject_id: selectedParticipant.subject_id,
+                          study_group: selectedParticipant.study_group,
+                          enrollment_date: selectedParticipant.enrollment_date,
+                          status: selectedParticipant.status,
+                          age: selectedParticipant.age,
+                          gender: selectedParticipant.gender,
+                        });
+                      }
+                    }}
+                    className="text-on-surface-variant hover:text-primary font-bold text-xs px-md py-2 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button 
+                    onClick={handleSaveParticipant}
+                    className="bg-primary hover:bg-primary-container text-on-primary px-xl py-2 rounded-lg font-semibold text-xs transition-colors shadow-md flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[14px]">save</span>
+                    <span>Save Changes</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button 
+                    onClick={() => setIsEditingDetails(true)}
+                    className="text-primary hover:text-primary-container font-bold text-xs flex items-center gap-1 hover:underline transition-all"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">edit</span>
+                    <span>Edit Record</span>
+                  </button>
+                  <button 
+                    onClick={() => setShowDetailsModal(false)}
+                    className="bg-slate-200 hover:bg-slate-300 text-on-surface-variant px-lg py-2 rounded-lg font-semibold text-xs transition-colors"
+                  >
+                    Close View
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}
