@@ -10,6 +10,20 @@ export const apiClient = axios.create({
   },
 });
 
+// Request interceptor to automatically add authorization header
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("token");
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Response interceptor to format errors gracefully
 apiClient.interceptors.response.use(
   (response) => response,

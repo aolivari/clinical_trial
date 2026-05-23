@@ -15,10 +15,22 @@ export interface Participant {
 export type ParticipantCreate = Omit<Participant, 'participant_id'>;
 export type ParticipantUpdate = Partial<ParticipantCreate>;
 
-/** Matches backend ParticipantListResponse */
 export interface PaginatedResponse<T> {
   total: number;
   skip: number;
   limit: number;
   items: T[];
+}
+
+export interface User {
+  username: string;
+  role: string;
+}
+
+export interface LoginResponse {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+  username: string;
+  role: string;
 }
