@@ -7,13 +7,14 @@ from app.core.security import get_current_user
 from app.models import Participant
 from app.schemas import ParticipantCreate, ParticipantResponse, ParticipantUpdate
 
-router = APIRouter(prefix="/api/v1/participants", tags=["Participants"])
+router = APIRouter(
+    prefix="/api/v1/participants",
+    tags=["Participants"],
+    dependencies=[Depends(get_current_user)]
+)
 
 @router.get("", response_model=list[ParticipantResponse])
-def get_participants(
-    session: Session = Depends(get_db), 
-    current_user: dict = Depends(get_current_user)
-):
+def get_participants(session: Session = Depends(get_db)):
     """Fetch all clinical trial participants. Requires authorization."""
     statement = select(Participant)
     results = session.exec(statement).all()
@@ -22,8 +23,7 @@ def get_participants(
 @router.get("/{participant_id}", response_model=ParticipantResponse)
 def get_participant(
     participant_id: UUID, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    session: Session = Depends(get_db)
 ):
     """Fetch a single participant by UUID. Requires authorization."""
     participant = session.get(Participant, participant_id)
@@ -37,8 +37,7 @@ def get_participant(
 @router.post("", response_model=ParticipantResponse, status_code=status.HTTP_201_CREATED)
 def create_participant(
     participant_in: ParticipantCreate, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    session: Session = Depends(get_db)
 ):
     """Register a new clinical trial participant. Requires authorization."""
     # Check if subject_id already exists
@@ -67,8 +66,7 @@ def create_participant(
 def update_participant(
     participant_id: UUID, 
     participant_in: ParticipantUpdate, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    session: Session = Depends(get_db)
 ):
     """Update properties of an existing participant. Requires authorization."""
     db_participant = session.get(Participant, participant_id)
@@ -103,8 +101,7 @@ def update_participant(
 @router.delete("/{participant_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_participant(
     participant_id: UUID, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
+    session: Session = Depends(get_db)
 ):
     """Delete a participant by ID. Requires authorization."""
     db_participant = session.get(Participant, participant_id)

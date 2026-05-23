@@ -33,6 +33,15 @@ def test_login_failure():
     assert response.status_code == 401
     assert "detail" in response.json()
 
+def test_login_invalid_email_format():
+    """Verify login fails with HTTP 422 when email format is invalid."""
+    response = client.post("/api/v1/auth/login", json={
+        "email": "invalid-email-format",
+        "password": "password123"
+    })
+    assert response.status_code == 422
+    assert "detail" in response.json()
+
 def test_get_participants_unauthorized():
     """Verify GET on protected participant route fails with HTTP 403 when token is missing."""
     response = client.get("/api/v1/participants")

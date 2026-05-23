@@ -1,7 +1,7 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, EmailStr
 
 class LoginRequest(BaseModel):
-    email: str = Field(..., examples=["researcher@clintrack.com"])
+    email: EmailStr = Field(..., examples=["researcher@clintrack.com"])
     password: str = Field(..., examples=["password123"])
 
 class LoginResponse(BaseModel):
