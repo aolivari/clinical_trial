@@ -1,0 +1,1226 @@
+import React, { useEffect, useState } from 'react';
+import { apiClient } from './api/client';
+import { Participant, ParticipantCreate, StudyGroup, ParticipantStatus, Gender } from './types';
+
+type Page = 'login' | 'dashboard' | 'participants' | 'add_subject';
+
+export default function App() {
+  const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+  const [user, setUser] = useState<{ username: string; role: string } | null>(
+    localStorage.getItem('username') 
+      ? { 
+          username: localStorage.getItem('username')!, 
+          role: localStorage.getItem('role')! 
+        } 
+      : null
+  );
+
+  const [currentPage, setCurrentPage] = useState<Page>(token ? 'dashboard' : 'login');
+  const [participants, setParticipants] = useState<Participant[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Authentication form state
+  const [email, setEmail] = useState('researcher@clintrack.com');
+  const [password, setPassword] = useState('password123');
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Search & Filter state
+  const [searchTerm, setSearchTerm] = useState('');
+  const [groupFilter, setGroupFilter] = useState<string>('all');
+  const [statusFilter, setStatusFilter] = useState<string>('all');
+
+  // Pagination state
+  const [currentPageIndex, setCurrentPageIndex] = useState(1);
+  const itemsPerPage = 6;
+
+  // New Participant form state
+  const [formData, setFormData] = useState<ParticipantCreate>({
+    subject_id: '',
+    study_group: 'treatment',
+    enrollment_date: new Date().toISOString().split('T')[0],
+    status: 'active',
+    age: 35,
+    gender: 'F',
+  });
+  const [notes, setNotes] = useState('');
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [lastRegisteredId, setLastRegisteredId] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
+
+  // Fetch participants
+  const fetchParticipants = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      // Attach JWT token to auth headers if present
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await apiClient.get<Participant[]>('/api/v1/participants', { headers });
+      setParticipants(response.data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to query trial participants.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchParticipants();
+    }
+  }, [token]);
+
+  // Auth Handler
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsAuthenticating(true);
+      setLoginError(null);
+
+      const response = await apiClient.post('/api/v1/auth/login', { email, password });
+      const { access_token, username, role } = response.data;
+
+      localStorage.setItem('token', access_token);
+      localStorage.setItem('username', username);
+      localStorage.setItem('role', role);
+
+      setToken(access_token);
+      setUser({ username, role });
+      setCurrentPage('dashboard');
+    } catch (err: any) {
+      setLoginError(err.message || 'Authentication failed. Please verify credentials.');
+    } finally {
+      setIsAuthenticating(false);
+    }
+  };
+
+  const handleSignOut = () => {
+    localStorage.clear();
+    setToken(null);
+    setUser(null);
+    setCurrentPage('login');
+  };
+
+  // Delete Handler
+  const handleDeleteParticipant = async (id: string) => {
+    if (!confirm('Are you sure you want to remove this participant?')) return;
+    try {
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      await apiClient.delete(`/api/v1/participants/${id}`, { headers });
+      setParticipants(prev => prev.filter(p => p.participant_id !== id));
+    } catch (err: any) {
+      alert(err.message || 'Delete operation failed.');
+    }
+  };
+
+  // Add Participant Form Submit
+  const handleAddParticipant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setIsSubmitting(true);
+      setFormError(null);
+
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
+      const response = await apiClient.post<Participant>('/api/v1/participants', formData, { headers });
+      
+      setParticipants(prev => [response.data, ...prev]);
+      setLastRegisteredId(response.data.subject_id);
+      setShowSuccessModal(true);
+
+      // Reset form
+      setFormData({
+        subject_id: '',
+        study_group: 'treatment',
+        enrollment_date: new Date().toISOString().split('T')[0],
+        status: 'active',
+        age: 35,
+        gender: 'F',
+      });
+      setNotes('');
+    } catch (err: any) {
+      setFormError(err.message || 'Could not register trial participant.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Stats derivation
+  const totalParticipantsCount = participants.length;
+  const treatmentCount = participants.filter(p => p.study_group === 'treatment').length;
+  const controlCount = participants.filter(p => p.study_group === 'control').length;
+  const activeCount = participants.filter(p => p.status === 'active').length;
+  const completedCount = participants.filter(p => p.status === 'completed').length;
+  const withdrawnCount = participants.filter(p => p.status === 'withdrawn').length;
+
+  const treatmentPercentage = totalParticipantsCount > 0 ? Math.round((treatmentCount / totalParticipantsCount) * 100) : 55;
+  const controlPercentage = totalParticipantsCount > 0 ? Math.round((controlCount / totalParticipantsCount) * 100) : 45;
+  const retentionRate = totalParticipantsCount > 0 ? Math.round(((activeCount + completedCount) / totalParticipantsCount) * 100) : 94;
+
+  const averageAge = totalParticipantsCount > 0 
+    ? Math.round(participants.reduce((sum, p) => sum + p.age, 0) / totalParticipantsCount) 
+    : 45.2;
+
+  const maleCount = participants.filter(p => p.gender === 'M').length;
+  const femaleCount = participants.filter(p => p.gender === 'F').length;
+  const otherCount = participants.filter(p => p.gender === 'Other').length;
+
+  const malePercentage = totalParticipantsCount > 0 ? Math.round((maleCount / totalParticipantsCount) * 100) : 52;
+  const femalePercentage = totalParticipantsCount > 0 ? Math.round((femaleCount / totalParticipantsCount) * 100) : 46;
+  const otherPercentage = totalParticipantsCount > 0 ? 100 - malePercentage - femalePercentage : 2;
+
+  // Filtered lists
+  const filteredParticipants = participants.filter(p => {
+    const matchesSearch = p.subject_id.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesGroup = groupFilter === 'all' || p.study_group === groupFilter;
+    const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
+    return matchesSearch && matchesGroup && matchesStatus;
+  });
+
+  // Paginated lists
+  const totalPages = Math.ceil(filteredParticipants.length / itemsPerPage) || 1;
+  const paginatedParticipants = filteredParticipants.slice(
+    (currentPageIndex - 1) * itemsPerPage,
+    currentPageIndex * itemsPerPage
+  );
+
+  // Helper date formatter
+  const formatDateString = (dateStr: string) => {
+    try {
+      const parts = dateStr.split('-');
+      if (parts.length === 3) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const year = parts[0];
+        const month = months[parseInt(parts[1]) - 1] || 'Oct';
+        const day = parts[2];
+        return `${month} ${day}, ${year}`;
+      }
+      return dateStr;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  // --- LOGIN VIEW ---
+  if (currentPage === 'login') {
+    return (
+      <div className="min-h-screen flex items-center justify-center px-gutter relative overflow-hidden bg-background text-on-surface">
+        {/* Background Atmospheric Elements */}
+        <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
+          <div className="absolute top-[-10%] right-[-10%] w-[500px] h-[500px] rounded-full bg-primary-fixed blur-[120px]"></div>
+          <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full bg-secondary-fixed blur-[100px]"></div>
+        </div>
+
+        {/* Main Login Card Container */}
+        <main className="w-full max-w-[440px] z-10">
+          {/* Logo Branding */}
+          <div className="text-center mb-xl">
+            <div className="inline-flex items-center justify-center w-16 h-16 rounded-xl bg-primary text-on-primary mb-md shadow-lg">
+              <span className="material-symbols-outlined !text-[32px]">biotech</span>
+            </div>
+            <h1 className="font-headline-md text-3xl font-bold text-primary tracking-tight">ClinTrack Pro</h1>
+            <p className="font-body-lg text-body-lg text-on-surface-variant mt-xs">Clinical Trials Management Portal</p>
+          </div>
+
+          {/* Form */}
+          <div className="bg-surface-container-lowest p-xl rounded-xl border border-outline-variant shadow-lg shadow-black/5">
+            <form className="space-y-lg" onSubmit={handleLoginSubmit}>
+              {loginError && (
+                <div className="bg-error-container text-on-error-container text-xs p-3 rounded-lg border border-error/20 flex gap-2">
+                  <span className="material-symbols-outlined text-[16px] text-error">error</span>
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              {/* Email */}
+              <div className="space-y-1">
+                <label className="font-label-sm text-label-sm text-on-surface-variant block px-xs" htmlFor="email">Work Email</label>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
+                    <span className="material-symbols-outlined !text-[20px]">mail</span>
+                  </div>
+                  <input 
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-3 pl-11 pr-md font-body-md text-body-md focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none text-on-surface"
+                    id="email" 
+                    type="email"
+                    required
+                    placeholder="researcher@clintrack.com" 
+                    value={email}
+                    onChange={e => setEmail(e.target.value)}
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1">
+                <div className="flex justify-between items-center px-xs">
+                  <label className="font-label-sm text-label-sm text-on-surface-variant" htmlFor="password">Security Password</label>
+                  <a className="font-label-sm text-label-sm text-primary hover:underline transition-all" href="#" onClick={e => e.preventDefault()}>Forgot?</a>
+                </div>
+                <div className="relative group">
+                  <div className="absolute inset-y-0 left-0 pl-md flex items-center pointer-events-none text-outline group-focus-within:text-primary transition-colors">
+                    <span className="material-symbols-outlined !text-[20px]">lock</span>
+                  </div>
+                  <input 
+                    className="w-full bg-surface-container-low border border-outline-variant rounded-lg py-3 pl-11 pr-md font-body-md text-body-md focus:ring-2 focus:ring-primary focus:border-primary transition-all outline-none text-on-surface"
+                    id="password" 
+                    type={showPassword ? "text" : "password"}
+                    required
+                    placeholder="••••••••" 
+                    value={password}
+                    onChange={e => setPassword(e.target.value)}
+                  />
+                  <button 
+                    className="absolute inset-y-0 right-0 pr-md flex items-center text-outline hover:text-on-surface-variant transition-colors"
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                  >
+                    <span className="material-symbols-outlined !text-[20px]">
+                      {showPassword ? 'visibility_off' : 'visibility'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Stay Signed In */}
+              <div className="flex items-center gap-2 px-xs">
+                <input 
+                  className="w-4 h-4 rounded border-outline-variant text-primary focus:ring-primary bg-surface-container-low" 
+                  id="remember" 
+                  type="checkbox"
+                  defaultChecked
+                />
+                <label className="font-body-md text-body-md text-on-surface-variant cursor-pointer" htmlFor="remember">Stay authenticated for 12 hours</label>
+              </div>
+
+              {/* Submit */}
+              <button 
+                className="w-full bg-primary hover:bg-primary-container text-on-primary font-headline-md text-headline-md py-3.5 rounded-lg shadow-sm hover:shadow-md active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-lg" 
+                id="signInBtn" 
+                type="submit"
+                disabled={isAuthenticating}
+              >
+                {isAuthenticating ? (
+                  <>
+                    <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span>Authenticating...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <span className="material-symbols-outlined !text-[20px]">login</span>
+                  </>
+                )}
+              </button>
+            </form>
+
+            <div className="mt-xl pt-lg border-t border-outline-variant flex items-center justify-center gap-2">
+              <span className="material-symbols-outlined !text-[16px] text-outline">verified_user</span>
+              <span className="font-label-sm text-label-sm text-outline uppercase tracking-wider">HiPAA Compliant Environment</span>
+            </div>
+          </div>
+
+          <div className="mt-lg flex justify-center gap-lg text-on-surface-variant font-body-md">
+            <a className="hover:text-primary transition-colors" href="#" onClick={e => e.preventDefault()}>Technical Support</a>
+            <span className="text-outline-variant">•</span>
+            <a className="hover:text-primary transition-colors" href="#" onClick={e => e.preventDefault()}>Privacy Policy</a>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // --- INTERNAL VIEW SHELL (Dashboard, List, Form) ---
+  return (
+    <div className="flex h-screen bg-background text-on-surface overflow-hidden">
+      
+      {/* Side Navigation Bar */}
+      <aside className="w-[240px] h-screen flex flex-col py-lg bg-surface-container-low border-r border-outline-variant/40 shrink-0">
+        <div className="px-lg mb-xl">
+          <h1 className="font-headline-md text-headline-md font-bold text-primary">ClinTrack Pro</h1>
+          <p className="font-label-sm text-label-sm text-on-surface-variant/70">Trial Phase III</p>
+        </div>
+
+        {/* Sidebar Nav */}
+        <nav className="flex-1 flex flex-col gap-xs">
+          
+          {/* Dashboard Tab */}
+          <button 
+            onClick={() => { setCurrentPage('dashboard'); setError(null); }}
+            className={`flex items-center gap-3 px-4 py-3 text-left transition-all ${
+              currentPage === 'dashboard'
+                ? 'text-primary border-l-4 border-primary bg-secondary-container/20 font-semibold'
+                : 'text-on-surface-variant hover:text-primary hover:bg-surface-variant'
+            }`}
+          >
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: currentPage === 'dashboard' ? "'FILL' 1" : "'FILL' 0" }}>dashboard</span>
+            <span className="font-body-md text-body-md">Dashboard</span>
+          </button>
+
+          {/* Participants Tab */}
+          <button 
+            onClick={() => { setCurrentPage('participants'); setError(null); }}
+            className={`flex items-center gap-3 px-4 py-3 text-left transition-all ${
+              currentPage === 'participants'
+                ? 'text-primary border-l-4 border-primary bg-secondary-container/20 font-semibold'
+                : 'text-on-surface-variant hover:text-primary hover:bg-surface-variant'
+            }`}
+          >
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: currentPage === 'participants' ? "'FILL' 1" : "'FILL' 0" }}>group</span>
+            <span className="font-body-md text-body-md">Participants</span>
+          </button>
+
+          {/* Add Subject Tab */}
+          <button 
+            onClick={() => { setCurrentPage('add_subject'); setError(null); }}
+            className={`flex items-center gap-3 px-4 py-3 text-left transition-all ${
+              currentPage === 'add_subject'
+                ? 'text-primary border-l-4 border-primary bg-secondary-container/20 font-semibold'
+                : 'text-on-surface-variant hover:text-primary hover:bg-surface-variant'
+            }`}
+          >
+            <span className="material-symbols-outlined" style={{ fontVariationSettings: currentPage === 'add_subject' ? "'FILL' 1" : "'FILL' 0" }}>person_add</span>
+            <span className="font-body-md text-body-md">Add Subject</span>
+          </button>
+
+        </nav>
+
+        {/* Footer Area */}
+        <div className="mt-auto px-lg pt-lg border-t border-outline-variant/60">
+          <button 
+            onClick={handleSignOut}
+            className="flex items-center gap-3 w-full px-4 py-2.5 text-left text-on-surface-variant hover:text-error hover:bg-error-container/10 rounded-lg transition-colors font-body-md"
+          >
+            <span className="material-symbols-outlined">logout</span>
+            <span>Sign Out</span>
+          </button>
+
+          <div className="mt-lg flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold border border-primary/10">
+              {user?.username.split(' ').map(n => n[0]).join('') || 'AT'}
+            </div>
+            <div className="overflow-hidden">
+              <p className="font-label-sm text-label-sm text-on-surface font-bold truncate">{user?.username || 'Dr. Aris Thorne'}</p>
+              <p className="text-[10px] text-on-surface-variant uppercase tracking-wider truncate">{user?.role || 'Lead Investigator'}</p>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Container */}
+      <div className="flex-1 flex flex-col h-screen overflow-hidden min-w-0">
+        
+        {/* Top Navbar */}
+        <header className="w-full h-16 bg-surface border-b border-outline-variant/80 flex items-center justify-between px-gutter shrink-0">
+          <h2 className="font-headline-md text-headline-md font-semibold text-on-surface">
+            {currentPage === 'dashboard' && 'Clinical Research Portal'}
+            {currentPage === 'participants' && 'Participants List'}
+            {currentPage === 'add_subject' && 'Clinical Research Portal'}
+          </h2>
+
+          <div className="flex items-center gap-md">
+            {/* Search Bar - only shown in dashboard / list */}
+            {currentPage !== 'add_subject' && (
+              <div className="relative w-64 hidden sm:block">
+                <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+                <input 
+                  className="w-full bg-surface-container-low border border-outline-variant/80 rounded-lg pl-10 pr-4 py-2 text-xs focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none text-on-surface"
+                  placeholder={currentPage === 'dashboard' ? "Search protocol ID..." : "Search Subject ID..."}
+                  type="text"
+                  value={searchTerm}
+                  onChange={e => {
+                    setSearchTerm(e.target.value);
+                    setCurrentPageIndex(1);
+                  }}
+                />
+              </div>
+            )}
+
+            <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant text-on-surface-variant relative transition-colors">
+              <span className="material-symbols-outlined">notifications</span>
+              <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-error rounded-full"></span>
+            </button>
+            <button className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-variant text-on-surface-variant transition-colors">
+              <span className="material-symbols-outlined">settings</span>
+            </button>
+          </div>
+        </header>
+
+        {/* Dynamic Content Grid */}
+        <main className="flex-1 overflow-y-auto p-gutter bg-background">
+          
+          {error && (
+            <div className="bg-red-50 text-red-800 text-xs p-4 rounded-xl border border-red-200/60 mb-xl flex items-center justify-between">
+              <div className="flex gap-2 items-center">
+                <span className="material-symbols-outlined text-[20px]">warning</span>
+                <span>{error}</span>
+              </div>
+              <button 
+                onClick={fetchParticipants}
+                className="px-3 py-1 bg-red-100 hover:bg-red-200 rounded border border-red-300 font-semibold"
+              >
+                Retry Query
+              </button>
+            </div>
+          )}
+
+          {/* ======================================= */}
+          {/* 1. DASHBOARD VIEW                       */}
+          {/* ======================================= */}
+          {currentPage === 'dashboard' && (
+            <div className="space-y-xl">
+              
+              {/* Header row */}
+              <div className="flex justify-between items-end">
+                <div>
+                  <p className="font-label-sm text-label-sm text-primary uppercase tracking-widest mb-xs">Performance Metrics</p>
+                  <h3 className="font-display-lg text-display-lg text-on-surface">Phase III Global Dashboard</h3>
+                </div>
+                <div className="flex gap-md">
+                  <div className="bg-surface-container-lowest shadow-sm rounded-lg px-md py-2 flex items-center gap-sm border border-outline-variant/30 text-xs text-on-surface-variant font-medium">
+                    <span className="material-symbols-outlined text-primary text-[18px]">calendar_today</span>
+                    <span>Last 30 Days</span>
+                  </div>
+                  <button 
+                    onClick={() => alert('Mock CSV Export Completed')}
+                    className="bg-primary hover:brightness-110 text-on-primary font-label-sm text-label-sm px-lg py-2.5 rounded-lg shadow-md transition-all flex items-center gap-1.5"
+                  >
+                    <span className="material-symbols-outlined text-[18px]">download</span>
+                    <span>EXPORT DATA</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* KPI Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-lg">
+                
+                {/* KPI: Total Participants */}
+                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
+                  <div className="flex justify-between items-start">
+                    <div className="p-2.5 bg-primary-fixed text-primary rounded-lg">
+                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
+                    </div>
+                    <span className="text-tertiary font-data-mono text-xs flex items-center gap-0.5 bg-tertiary-fixed px-1.5 py-0.5 rounded font-semibold">
+                      <span className="material-symbols-outlined text-[14px]">trending_up</span>
+                      <span>+12%</span>
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-label-sm text-label-sm text-on-surface-variant">Total Participants</p>
+                    <h4 className="font-display-lg text-3xl font-bold text-on-surface">{loading ? '...' : totalParticipantsCount}</h4>
+                  </div>
+                </div>
+
+                {/* KPI: Distribution Ratio */}
+                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
+                  <div className="flex justify-between items-start">
+                    <div className="p-2.5 bg-secondary-container text-secondary rounded-lg">
+                      <span className="material-symbols-outlined">balance</span>
+                    </div>
+                    <span className="font-label-sm text-xs text-on-surface-variant font-medium">Target: 1:1</span>
+                  </div>
+                  
+                  <div className="space-y-2 mt-2">
+                    <div>
+                      <div className="flex justify-between text-[10px] mb-1">
+                        <span className="font-semibold text-slate-700">Treatment (A)</span>
+                        <span className="text-primary font-bold">{treatmentPercentage}%</span>
+                      </div>
+                      <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                        <div className="h-full bg-primary transition-all duration-500" style={{ width: `${treatmentPercentage}%` }}></div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-[10px] mb-1">
+                        <span className="font-semibold text-slate-500">Control (B)</span>
+                        <span className="text-on-surface-variant font-semibold">{controlPercentage}%</span>
+                      </div>
+                      <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
+                        <div className="h-full bg-outline-variant transition-all duration-500" style={{ width: `${controlPercentage}%` }}></div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPI: Retention Rate */}
+                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
+                  <div className="flex justify-between items-start">
+                    <div className="p-2.5 bg-tertiary-container/10 text-tertiary rounded-lg">
+                      <span className="material-symbols-outlined">hourglass_empty</span>
+                    </div>
+                    <span className="text-[10px] text-on-surface-variant font-medium italic text-right leading-tight">
+                      Active Monitoring Rate
+                    </span>
+                  </div>
+                  <div>
+                    <p className="font-label-sm text-label-sm text-on-surface-variant">Retention Rate</p>
+                    <div className="flex items-baseline gap-1.5">
+                      <h4 className="font-display-lg text-3xl font-bold text-on-surface">{retentionRate}%</h4>
+                      <span className="text-primary font-bold text-xs">↑ 0.4%</span>
+                    </div>
+                    <div className="mt-2 h-1 w-full bg-tertiary-fixed rounded-full overflow-hidden">
+                      <div className="h-full bg-tertiary transition-all duration-500" style={{ width: `${retentionRate}%` }}></div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* KPI: Demographics */}
+                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
+                  <div className="flex justify-between items-start">
+                    <div className="p-2.5 bg-primary-fixed text-primary rounded-lg">
+                      <span className="material-symbols-outlined">analytics</span>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-label-sm text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider">Avg Age</p>
+                      <p className="font-bold text-primary text-base">{averageAge}</p>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-2">
+                    <p className="font-label-sm text-[10px] text-on-surface-variant mb-1 font-semibold">Gender Split</p>
+                    <div className="flex items-center h-2.5 rounded-full overflow-hidden w-full border border-surface-container-high bg-slate-100">
+                      <div className="h-full bg-primary transition-all duration-500" style={{ width: `${malePercentage}%` }} title={`Male ${malePercentage}%`}></div>
+                      <div className="h-full bg-secondary-fixed-dim transition-all duration-500" style={{ width: `${femalePercentage}%` }} title={`Female ${femalePercentage}%`}></div>
+                      <div className="h-full bg-inverse-surface transition-all duration-500" style={{ width: `${otherPercentage}%` }} title={`Other ${otherPercentage}%`}></div>
+                    </div>
+                    <div className="flex justify-between mt-1.5 text-[9px] font-semibold text-on-surface-variant">
+                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-primary rounded-full"></span> M {malePercentage}%</span>
+                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-secondary-fixed-dim rounded-full"></span> F {femalePercentage}%</span>
+                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-inverse-surface rounded-full"></span> O {otherPercentage}%</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Main grids details */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
+                
+                {/* Recent Enrollments Table */}
+                <div className="lg:col-span-2 bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 overflow-hidden flex flex-col justify-between">
+                  <div>
+                    <div className="p-lg border-b border-outline-variant/30 flex justify-between items-center">
+                      <h5 className="font-headline-md text-headline-md font-bold text-on-surface">Recent Participant Status</h5>
+                      <button 
+                        onClick={() => setCurrentPage('participants')}
+                        className="text-primary font-label-sm text-xs font-semibold hover:underline"
+                      >
+                        View All Records
+                      </button>
+                    </div>
+                    
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-left">
+                        <thead className="bg-surface-container-low text-[10px] text-on-surface-variant font-bold uppercase tracking-wider border-b border-outline-variant/20">
+                          <tr>
+                            <th className="px-lg py-3">Subject ID</th>
+                            <th className="px-lg py-3">Date</th>
+                            <th className="px-lg py-3">Group</th>
+                            <th className="px-lg py-3">Age / Gender</th>
+                            <th className="px-lg py-3">Status</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-outline-variant/20 text-xs">
+                          {loading ? (
+                            <tr>
+                              <td colSpan={5} className="text-center py-8 text-on-surface-variant">Querying database...</td>
+                            </tr>
+                          ) : participants.length === 0 ? (
+                            <tr>
+                              <td colSpan={5} className="text-center py-8 text-on-surface-variant">No participants registered yet.</td>
+                            </tr>
+                          ) : (
+                            participants.slice(0, 3).map((p) => (
+                              <tr key={p.participant_id} className="hover:bg-surface-variant/10 transition-colors">
+                                <td className="px-lg py-4 font-data-mono font-bold text-primary">{p.subject_id}</td>
+                                <td className="px-lg py-4 text-on-surface-variant">{formatDateString(p.enrollment_date)}</td>
+                                <td className="px-lg py-4 text-on-surface-variant capitalize">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                                    p.study_group === 'treatment' 
+                                      ? 'bg-blue-50 text-blue-800 border border-blue-200' 
+                                      : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                  }`}>
+                                    {p.study_group}
+                                  </span>
+                                </td>
+                                <td className="px-lg py-4 font-semibold text-on-surface-variant">{p.age} yrs • {p.gender}</td>
+                                <td className="px-lg py-4">
+                                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                    p.status === 'active' 
+                                      ? 'bg-emerald-50 text-emerald-800 border border-emerald-200' 
+                                      : p.status === 'completed'
+                                      ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                                      : 'bg-red-50 text-red-800 border border-red-200'
+                                  }`}>
+                                    {p.status}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                  <div className="p-4 border-t border-outline-variant/20 bg-slate-50/50 text-center text-xs text-on-surface-variant/80">
+                    Database holds {totalParticipantsCount} total test cases.
+                  </div>
+                </div>
+
+                {/* Bento Card Side Info */}
+                <div className="flex flex-col gap-lg">
+                  {/* Study Health */}
+                  <div className="bg-primary p-lg rounded-xl shadow-lg text-on-primary flex flex-col justify-between h-48">
+                    <div>
+                      <h5 className="font-headline-md text-headline-md font-bold mb-xs">Study Health</h5>
+                      <p className="font-body-md text-xs opacity-80 leading-normal">
+                        Protocols are performing 14% above baseline regulatory and safety thresholds.
+                      </p>
+                    </div>
+                    
+                    <div className="flex justify-between items-center bg-white/10 p-md rounded-lg mt-3 text-center">
+                      <div className="flex-1">
+                        <p className="text-[9px] uppercase font-bold tracking-widest opacity-70">Efficiency</p>
+                        <p className="text-lg font-bold">92.4%</p>
+                      </div>
+                      <div className="w-px h-8 bg-white/20"></div>
+                      <div className="flex-1">
+                        <p className="text-[9px] uppercase font-bold tracking-widest opacity-70">Regulatory</p>
+                        <p className="text-lg font-bold">CLEAR</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Countries */}
+                  <div className="bg-surface-container-highest p-lg rounded-xl border border-outline-variant/10 flex-1 flex flex-col justify-between min-h-48 relative overflow-hidden group">
+                    <div className="relative z-10">
+                      <h5 className="font-headline-md text-headline-md font-bold text-on-surface mb-xs">Global Impact</h5>
+                      <p className="font-body-md text-xs text-on-surface-variant leading-relaxed">
+                        Active clinical collection centers deployed across 12 countries.
+                      </p>
+                      <div className="mt-4 flex gap-2">
+                        <div className="h-10 w-10 rounded bg-white shadow-sm flex items-center justify-center font-bold text-xs border border-outline-variant/20">US</div>
+                        <div className="h-10 w-10 rounded bg-white shadow-sm flex items-center justify-center font-bold text-xs border border-outline-variant/20">EU</div>
+                        <div className="h-10 w-10 rounded bg-white shadow-sm flex items-center justify-center font-bold text-xs border border-outline-variant/20">JP</div>
+                        <div className="h-10 w-10 rounded bg-white shadow-sm flex items-center justify-center font-bold text-xs border border-outline-variant/20 text-slate-500">+9</div>
+                      </div>
+                    </div>
+
+                    {/* Decorative World Icon */}
+                    <div className="absolute -right-10 -bottom-10 opacity-10 group-hover:opacity-20 transition-opacity pointer-events-none">
+                      <span className="material-symbols-outlined text-[140px]" style={{ fontVariationSettings: "'FILL' 0" }}>public</span>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Footer */}
+              <footer className="text-center py-4 border-t border-outline-variant/20 text-xs text-on-surface-variant opacity-60">
+                System Last Updated: October 25, 2023 14:32 UTC | Data synchronization with central lab is active.
+              </footer>
+
+            </div>
+          )}
+
+          {/* ======================================= */}
+          {/* 2. PARTICIPANTS LIST VIEW               */}
+          {/* ======================================= */}
+          {currentPage === 'participants' && (
+            <div className="space-y-lg">
+              
+              {/* Header row */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-md mb-2">
+                <div className="flex items-center gap-sm">
+                  <div className="bg-surface-container-highest px-4 py-2 rounded-lg flex items-center gap-2 border border-outline-variant/10">
+                    <span className="font-label-sm text-[10px] text-on-surface-variant uppercase font-semibold">Total Subjects</span>
+                    <span className="font-headline-md text-lg font-bold text-primary">{totalParticipantsCount}</span>
+                  </div>
+                  <div className="bg-surface-container-highest px-4 py-2 rounded-lg flex items-center gap-2 border border-outline-variant/10">
+                    <span className="font-label-sm text-[10px] text-on-surface-variant uppercase font-semibold">Active</span>
+                    <span className="font-headline-md text-lg font-bold text-tertiary">{activeCount}</span>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  
+                  {/* Status filter dropdown */}
+                  <select 
+                    value={statusFilter}
+                    onChange={e => {
+                      setStatusFilter(e.target.value);
+                      setCurrentPageIndex(1);
+                    }}
+                    className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs font-semibold text-on-surface hover:bg-slate-50 transition-colors focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="all">Filter Status</option>
+                    <option value="active">Active</option>
+                    <option value="completed">Completed</option>
+                    <option value="withdrawn">Withdrawn</option>
+                  </select>
+
+                  {/* Group filter dropdown */}
+                  <select 
+                    value={groupFilter}
+                    onChange={e => {
+                      setGroupFilter(e.target.value);
+                      setCurrentPageIndex(1);
+                    }}
+                    className="bg-surface-container-lowest border border-outline-variant rounded-lg px-3 py-2 text-xs font-semibold text-on-surface hover:bg-slate-50 transition-colors focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="all">Filter Group</option>
+                    <option value="treatment">Treatment</option>
+                    <option value="control">Control</option>
+                  </select>
+
+                  {/* Register New Subject Button */}
+                  <button 
+                    onClick={() => setCurrentPage('add_subject')}
+                    className="bg-primary hover:brightness-115 text-on-primary text-xs font-semibold px-4 py-2.5 rounded-lg shadow-sm transition-all flex items-center gap-1"
+                  >
+                    <span className="material-symbols-outlined text-[16px]">add</span>
+                    <span>New Participant</span>
+                  </button>
+
+                </div>
+              </div>
+
+              {/* Main table container */}
+              <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="bg-surface-container-low border-b border-outline-variant/50 text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">
+                        <th className="px-lg py-4">Subject ID</th>
+                        <th className="px-lg py-4">Study Group</th>
+                        <th className="px-lg py-4">Enrollment Date</th>
+                        <th className="px-lg py-4">Status</th>
+                        <th className="px-lg py-4">Age</th>
+                        <th className="px-lg py-4">Gender</th>
+                        <th className="px-lg py-4 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant/30 text-xs">
+                      {loading ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-16 text-on-surface-variant font-medium">Querying database engine...</td>
+                        </tr>
+                      ) : paginatedParticipants.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-16 text-on-surface-variant">
+                            <span className="material-symbols-outlined text-4xl text-outline mb-2">help_outline</span>
+                            <p className="font-semibold text-base mt-1 text-slate-700">No matches found</p>
+                            <p className="text-xs text-slate-500 mt-0.5">Try resetting the filter criteria or register a new subject</p>
+                          </td>
+                        </tr>
+                      ) : (
+                        paginatedParticipants.map((p) => (
+                          <tr key={p.participant_id} className="hover:bg-surface-container-low transition-colors group">
+                            
+                            {/* Subject ID */}
+                            <td className="px-lg py-4">
+                              <div className="flex items-center gap-2">
+                                <span className={`w-2 h-2 rounded-full ${
+                                  p.status === 'active' ? 'bg-primary' : p.status === 'completed' ? 'bg-outline' : 'bg-error'
+                                }`} />
+                                <span className="font-data-mono font-bold text-on-surface">{p.subject_id}</span>
+                              </div>
+                            </td>
+
+                            {/* Study Group */}
+                            <td className="px-lg py-4">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                p.study_group === 'treatment' 
+                                  ? 'bg-blue-50 text-blue-800 border border-blue-200' 
+                                  : 'bg-slate-100 text-slate-700 border border-slate-200'
+                              }`}>
+                                {p.study_group}
+                              </span>
+                            </td>
+
+                            {/* Enrollment date */}
+                            <td className="px-lg py-4 text-on-surface-variant font-medium">
+                              {formatDateString(p.enrollment_date)}
+                            </td>
+
+                            {/* Status */}
+                            <td className="px-lg py-4">
+                              <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
+                                p.status === 'active' 
+                                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                                  : p.status === 'completed'
+                                  ? 'bg-purple-50 text-purple-800 border border-purple-200'
+                                  : 'bg-red-50 text-red-800 border border-red-200'
+                              }`}>
+                                {p.status}
+                              </span>
+                            </td>
+
+                            {/* Age */}
+                            <td className="px-lg py-4 text-on-surface-variant font-semibold">
+                              {p.age}
+                            </td>
+
+                            {/* Gender */}
+                            <td className="px-lg py-4 text-on-surface-variant font-medium">
+                              {p.gender === 'F' && 'Female'}
+                              {p.gender === 'M' && 'Male'}
+                              {p.gender === 'Other' && 'Other'}
+                            </td>
+
+                            {/* Actions delete */}
+                            <td className="px-lg py-4 text-right">
+                              <button 
+                                onClick={() => handleDeleteParticipant(p.participant_id)}
+                                className="text-slate-400 hover:text-red-500 p-1.5 rounded-full hover:bg-slate-100 transition-colors"
+                                title="Delete subject"
+                              >
+                                <span className="material-symbols-outlined text-[18px]">delete</span>
+                              </button>
+                            </td>
+
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Pagination */}
+                <div className="px-lg py-4 flex items-center justify-between bg-surface-container-low border-t border-outline-variant/30 text-xs">
+                  <span className="font-body-md text-on-surface-variant">
+                    Showing {(currentPageIndex - 1) * itemsPerPage + 1} to {Math.min(currentPageIndex * itemsPerPage, filteredParticipants.length)} of {filteredParticipants.length} entries
+                  </span>
+                  
+                  <div className="flex items-center gap-1.5">
+                    <button 
+                      onClick={() => setCurrentPageIndex(prev => Math.max(prev - 1, 1))}
+                      disabled={currentPageIndex === 1}
+                      className="p-1.5 rounded hover:bg-surface-variant text-outline disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">chevron_left</span>
+                    </button>
+                    
+                    {Array.from({ length: totalPages }).map((_, i) => (
+                      <button
+                        key={i}
+                        onClick={() => setCurrentPageIndex(i + 1)}
+                        className={`w-7 h-7 rounded text-xs font-semibold transition-colors ${
+                          currentPageIndex === i + 1
+                            ? 'bg-primary text-on-primary'
+                            : 'hover:bg-surface-variant text-on-surface'
+                        }`}
+                      >
+                        {i + 1}
+                      </button>
+                    ))}
+                    
+                    <button 
+                      onClick={() => setCurrentPageIndex(prev => Math.min(prev + 1, totalPages))}
+                      disabled={currentPageIndex === totalPages}
+                      className="p-1.5 rounded hover:bg-surface-variant text-outline disabled:opacity-30 disabled:hover:bg-transparent"
+                    >
+                      <span className="material-symbols-outlined text-[16px]">chevron_right</span>
+                    </button>
+                  </div>
+                </div>
+
+              </div>
+
+              {/* Contextual Insights Bento Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-lg mt-8">
+                
+                <div className="bg-white/80 backdrop-blur-md p-lg rounded-xl flex flex-col gap-sm shadow-sm border border-outline-variant/20 border-l-4 border-l-primary">
+                  <span className="font-label-sm text-[10px] text-primary uppercase font-bold tracking-wider">Enrollment Trend</span>
+                  <div className="h-14 w-full flex items-end gap-1.5 mt-2">
+                    <div className="bg-primary/20 w-full h-[30%] rounded-t-sm"></div>
+                    <div className="bg-primary/30 w-full h-[50%] rounded-t-sm"></div>
+                    <div className="bg-primary/40 w-full h-[40%] rounded-t-sm"></div>
+                    <div className="bg-primary/60 w-full h-[70%] rounded-t-sm"></div>
+                    <div className="bg-primary/80 w-full h-[60%] rounded-t-sm"></div>
+                    <div className="bg-primary w-full h-[90%] rounded-t-sm"></div>
+                  </div>
+                  <p className="font-body-md text-xs text-on-surface-variant mt-2 font-medium">12% increase since last month.</p>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-md p-lg rounded-xl flex flex-col gap-sm shadow-sm border border-outline-variant/20 border-l-4 border-l-tertiary justify-between">
+                  <span className="font-label-sm text-[10px] text-tertiary uppercase font-bold tracking-wider">Diversity Index</span>
+                  <div className="flex items-center gap-lg mt-2">
+                    <div className="relative w-12 h-12 rounded-full border-4 border-tertiary-container/30 flex items-center justify-center">
+                      <span className="font-headline-md text-sm text-tertiary font-bold">0.8</span>
+                    </div>
+                    <p className="font-body-md text-xs text-on-surface-variant font-medium leading-relaxed">Meeting demographic targets for Phase III trial representation.</p>
+                  </div>
+                </div>
+
+                <div className="bg-white/80 backdrop-blur-md p-lg rounded-xl flex flex-col gap-sm shadow-sm border border-outline-variant/20 border-l-4 border-l-slate-600">
+                  <span className="font-label-sm text-[10px] text-slate-600 uppercase font-bold tracking-wider">Retention Rate</span>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="font-display-lg text-2xl font-bold text-on-surface">94.2%</span>
+                    <span className="material-symbols-outlined text-green-600 text-sm">trending_up</span>
+                  </div>
+                  <p className="font-body-md text-xs text-on-surface-variant mt-2 font-medium">Protocol Benchmark limit: 88%</p>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+          {/* ======================================= */}
+          {/* 3. ADD SUBJECT VIEW                     */}
+          {/* ======================================= */}
+          {currentPage === 'add_subject' && (
+            <div className="space-y-xl">
+              
+              {/* Header */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-xs text-primary">
+                  <span className="material-symbols-outlined text-[18px]">clinical_notes</span>
+                  <span className="font-label-sm text-xs font-bold uppercase tracking-wider">New Enrollment</span>
+                </div>
+                <h1 className="font-display-lg text-2xl font-bold text-on-surface mb-xs">Register New Participant</h1>
+                <p className="font-body-md text-xs text-on-surface-variant max-w-2xl leading-relaxed">
+                  Enter the participant details accurately to ensure protocol compliance and data integrity for Phase III clinical trial data points.
+                </p>
+              </div>
+
+              {/* Grid Form layout */}
+              <div className="grid grid-cols-12 gap-lg items-start">
+                
+                {/* Form card */}
+                <div className="col-span-12 lg:col-span-8 bg-surface-container-lowest shadow-sm rounded-xl p-xl border border-outline-variant/20">
+                  <form className="space-y-lg" onSubmit={handleAddParticipant}>
+                    
+                    {formError && (
+                      <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded-lg">
+                        {formError}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
+
+                      {/* Enrollment Date */}
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="enrollment_date">
+                          Enrollment Date <span className="text-error">*</span>
+                        </label>
+                        <input 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="enrollment_date"
+                          type="date"
+                          required
+                          value={formData.enrollment_date}
+                          onChange={e => setFormData(prev => ({ ...prev, enrollment_date: e.target.value }))}
+                        />
+                      </div>
+
+                      {/* Study Group */}
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="study_group">
+                          Study Group <span className="text-error">*</span>
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="study_group"
+                          required
+                          value={formData.study_group}
+                          onChange={e => setFormData(prev => ({ ...prev, study_group: e.target.value as StudyGroup }))}
+                        >
+                          <option value="treatment">Treatment</option>
+                          <option value="control">Control</option>
+                        </select>
+                      </div>
+
+                      {/* Status */}
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="status">
+                          Status <span className="text-error">*</span>
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="status"
+                          required
+                          value={formData.status}
+                          onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as ParticipantStatus }))}
+                        >
+                          <option value="active">Active</option>
+                          <option value="completed">Completed</option>
+                          <option value="withdrawn">Withdrawn</option>
+                        </select>
+                      </div>
+
+                      {/* Age */}
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="age">
+                          Age <span className="text-error">*</span>
+                        </label>
+                        <input 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="age"
+                          type="number"
+                          required
+                          min="18"
+                          max="120"
+                          placeholder="Min 18"
+                          value={formData.age}
+                          onChange={e => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+                        />
+                      </div>
+
+                      {/* Gender */}
+                      <div className="space-y-1">
+                        <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="gender">
+                          Gender <span className="text-error">*</span>
+                        </label>
+                        <select 
+                          className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                          id="gender"
+                          required
+                          value={formData.gender}
+                          onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value as Gender }))}
+                        >
+                          <option value="M">Male (M)</option>
+                          <option value="F">Female (F)</option>
+                          <option value="Other">Other</option>
+                        </select>
+                      </div>
+
+                    </div>
+
+                    {/* Notes */}
+                    <div className="space-y-1 pt-2">
+                      <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="notes">
+                        Internal Researcher Notes
+                      </label>
+                      <textarea 
+                        className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                        id="notes"
+                        rows={3}
+                        placeholder="Initial screening observations..."
+                        value={notes}
+                        onChange={e => setNotes(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center justify-between pt-md border-t border-outline-variant/30 mt-xl">
+                      <button 
+                        className="px-lg py-2 text-xs font-bold text-on-surface-variant hover:text-primary transition-colors"
+                        type="button"
+                        onClick={() => {
+                          setFormData({
+                            subject_id: '',
+                            study_group: 'treatment',
+                            enrollment_date: new Date().toISOString().split('T')[0],
+                            status: 'active',
+                            age: 35,
+                            gender: 'F',
+                          });
+                          setNotes('');
+                        }}
+                      >
+                        CLEAR FORM
+                      </button>
+                      
+                      <button 
+                        className="bg-primary hover:bg-primary-container text-on-primary px-xl py-2.5 rounded-lg font-semibold text-xs transition-all shadow-md active:scale-[0.98] flex items-center gap-1.5"
+                        type="submit"
+                        disabled={isSubmitting}
+                      >
+                        {isSubmitting ? (
+                          <>
+                            <span className="material-symbols-outlined animate-spin text-[16px]">rotate_right</span>
+                            <span>Registering...</span>
+                          </>
+                        ) : (
+                          <>
+                            <span>Register Participant</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+
+                  </form>
+                </div>
+
+                {/* Sidebar Guidance card */}
+                <div className="col-span-12 lg:col-span-4 space-y-lg">
+                  <div className="bg-secondary-container/20 border border-secondary-container/40 p-lg rounded-xl">
+                    <div className="flex items-center gap-sm mb-md text-primary">
+                      <span className="material-symbols-outlined text-[18px]">info</span>
+                      <h3 className="font-headline-md text-xs font-bold uppercase tracking-wider text-on-secondary-container">Trial Guidelines</h3>
+                    </div>
+                    <ul className="space-y-sm text-xs text-on-secondary-container/80 leading-relaxed font-medium">
+                      <li className="flex items-start gap-2">
+                        <span className="material-symbols-outlined text-primary text-[14px] mt-0.5">check_circle</span>
+                        <span>Participants must be aged 18-75.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="material-symbols-outlined text-primary text-[14px] mt-0.5">check_circle</span>
+                        <span>Informed consent form must be uploaded post-registration.</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="material-symbols-outlined text-primary text-[14px] mt-0.5">check_circle</span>
+                        <span>Randomization is handled automatically based on Group selection.</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div className="bg-surface-container-lowest shadow-sm rounded-xl overflow-hidden border border-outline-variant/25">
+                    <img 
+                      alt="Clinical Lab Environment" 
+                      className="w-full h-40 object-cover" 
+                      src="https://lh3.googleusercontent.com/aida-public/AB6AXuDMOkAkmI5z7F6XEBMYo8Sf4U29Ixxx_lVBF0OuEXP6URUk2I1ptSIax2ECJxeyeDoCme-4z0yVb0NJ3ZrXdOpg4wTiNlqXUdtUVo4g3fWitww5-ytCUAMIVcqSvoPA0P6pOUI2OfKt0J-fEME2K-t8AatcXqZ85k_AKnKkF_IFEapOl9ARz-35o4srcrnJoxv8z8VWtqOn20bF9Y9K44RHWWsmuSCSbyUlRTAnaALU8eZpOsDHAbPVb88aXJS7u49kv_LKTIt4x2Y"
+                    />
+                    <div className="p-lg">
+                      <h4 className="font-headline-md text-sm font-bold mb-1 text-on-surface">Protocol Compliance</h4>
+                      <p className="font-body-md text-[11px] text-on-surface-variant leading-relaxed">
+                        All subject entries are logged and timestamped for GxP auditing requirements. Ensure double-verification of Subject ID.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+          )}
+
+        </main>
+      </div>
+
+      {/* Success Modal Overlay (Add Subject confirmation) */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-xl text-center transform scale-100 transition-transform duration-300 border border-outline-variant/30">
+            <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-lg text-primary">
+              <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
+            </div>
+            
+            <h2 className="font-display-lg text-lg font-bold text-on-surface mb-2">Registration Successful</h2>
+            <p className="font-body-md text-xs text-on-surface-variant mb-6 leading-relaxed">
+              Subject <span className="font-bold text-primary">{lastRegisteredId}</span> has been successfully enrolled in the Phase III trial.
+            </p>
+            
+            <button 
+              className="w-full bg-primary hover:bg-primary-container text-on-primary py-2.5 rounded-lg font-semibold text-xs shadow-md transition-colors"
+              onClick={() => {
+                setShowSuccessModal(false);
+                setCurrentPage('dashboard');
+              }}
+            >
+              Continue to Dashboard
+            </button>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
