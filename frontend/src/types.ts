@@ -14,3 +14,11 @@ export interface Participant {
 
 export type ParticipantCreate = Omit<Participant, 'participant_id'>;
 export type ParticipantUpdate = Partial<ParticipantCreate>;
+
+/** Matches backend ParticipantListResponse */
+export interface PaginatedResponse<T> {
+  total: number;
+  skip: number;
+  limit: number;
+  items: T[];
+}

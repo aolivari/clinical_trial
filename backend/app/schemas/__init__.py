@@ -7,4 +7,5 @@ from app.schemas.participant import (
     ParticipantCreate,
     ParticipantUpdate,
     ParticipantResponse,
+    ParticipantListResponse,
 )

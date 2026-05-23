@@ -41,3 +41,11 @@ class ParticipantResponse(ParticipantBase):
 
     class Config:
         from_attributes = True
+
+
+class ParticipantListResponse(BaseModel):
+    """Paginated list of participants."""
+    total: int = Field(..., description="Total number of participants in the database")
+    skip: int = Field(..., description="Number of records skipped")
+    limit: int = Field(..., description="Maximum records returned in this page")
+    items: list[ParticipantResponse]

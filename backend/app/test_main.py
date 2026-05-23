@@ -94,34 +94,30 @@ def test_get_participants_unauthorized():
     assert response.status_code == 403
 
 def test_get_participants_authorized():
-    """Verify GET on protected participant route succeeds with HTTP 200 when presenting valid JWT."""
-    # Obtain token
+    """Verify GET on protected participant route succeeds with HTTP 200 and paginated response."""
     login_response = client.post("/api/v1/auth/login", json={
         "email": "researcher@clintrack.com",
         "password": "password123"
     })
     token = login_response.json()["access_token"]
-    
-    # Query route
+
     response = client.get("/api/v1/participants", headers={
         "Authorization": f"Bearer {token}"
     })
     assert response.status_code == 200
-    assert isinstance(response.json(), list)
-    assert len(response.json()) >= 6 # Pre-seeded participants
+    data = response.json()
+    # Response is now paginated
+    assert "total" in data
+    assert "skip" in data
+    assert "limit" in data
+    assert "items" in data
+    assert isinstance(data["items"], list)
+    assert data["total"] >= 6  # Pre-seeded participants
+    assert data["skip"] == 0
+    assert data["limit"] == 50
 
 def test_create_participant_authorized():
     """Verify POST succeeds and registers a new case when presenting a valid JWT."""
-    # Cleanup database state for P099 if it exists from a previous run
-    from app.core.database import engine
-    from sqlmodel import Session, select
-    from app.models import Participant
-    with Session(engine) as session:
-        existing = session.exec(select(Participant).where(Participant.subject_id == "P099")).first()
-        if existing:
-            session.delete(existing)
-            session.commit()
-
     # Obtain token
     login_response = client.post("/api/v1/auth/login", json={
         "email": "researcher@clintrack.com",
@@ -147,24 +143,67 @@ def test_create_participant_authorized():
     assert data["age"] == 45
     assert data["gender"] == "F"
 
-def test_update_participant_authorized():
-    """Verify PUT succeeds and modifies a participant's details when presenting a valid JWT."""
-    # Obtain token
+def test_pagination_params():
+    """Verify that skip and limit query params correctly slice the result set."""
     login_response = client.post("/api/v1/auth/login", json={
         "email": "researcher@clintrack.com",
         "password": "password123"
     })
     token = login_response.json()["access_token"]
-    
-    # First, query all participants to get a valid UUID
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Page 1: first 2 records
+    r1 = client.get("/api/v1/participants?skip=0&limit=2", headers=headers)
+    assert r1.status_code == 200
+    d1 = r1.json()
+    assert len(d1["items"]) == 2
+    assert d1["skip"] == 0
+    assert d1["limit"] == 2
+
+    # Page 2: next 2 records — must be different from page 1
+    r2 = client.get("/api/v1/participants?skip=2&limit=2", headers=headers)
+    assert r2.status_code == 200
+    d2 = r2.json()
+    assert len(d2["items"]) == 2
+    ids_page1 = {p["participant_id"] for p in d1["items"]}
+    ids_page2 = {p["participant_id"] for p in d2["items"]}
+    assert ids_page1.isdisjoint(ids_page2), "Pages must not overlap"
+
+    # total must be consistent across pages
+    assert d1["total"] == d2["total"]
+
+
+def test_pagination_limit_validation():
+    """Verify that limit > 200 is rejected with HTTP 422."""
+    login_response = client.post("/api/v1/auth/login", json={
+        "email": "researcher@clintrack.com",
+        "password": "password123"
+    })
+    token = login_response.json()["access_token"]
+
+    response = client.get("/api/v1/participants?limit=999", headers={
+        "Authorization": f"Bearer {token}"
+    })
+    assert response.status_code == 422
+
+
+def test_update_participant_authorized():
+    """Verify PUT succeeds and modifies a participant's details when presenting a valid JWT."""
+    login_response = client.post("/api/v1/auth/login", json={
+        "email": "researcher@clintrack.com",
+        "password": "password123"
+    })
+    token = login_response.json()["access_token"]
+
+    # Query all participants — now paginated
     list_response = client.get("/api/v1/participants", headers={
         "Authorization": f"Bearer {token}"
     })
-    participants = list_response.json()
+    participants = list_response.json()["items"]
     assert len(participants) > 0
     target_uuid = participants[0]["participant_id"]
     original_subject_id = participants[0]["subject_id"]
-    
+
     # Update the record (e.g., change age and gender)
     update_response = client.put(f"/api/v1/participants/{target_uuid}", json={
         "age": 55,

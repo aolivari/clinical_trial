@@ -6,7 +6,7 @@ load_dotenv(find_dotenv())
 
 SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 ALGORITHM = "HS256"
-DATABASE_URL = "sqlite:///./clinical_trial.db"
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clinical_trial.db")
 
 # Fallback for local development or testing, but enforce in production
 if not SECRET_KEY:

@@ -6,15 +6,30 @@ Routers call these functions and handle HTTP-level concerns (exceptions, status 
 """
 from uuid import UUID
 
-from sqlmodel import Session, select
+from sqlmodel import Session, func, select
 
 from app.models import Participant
 from app.schemas import ParticipantCreate, ParticipantUpdate
 
+_DEFAULT_LIMIT = 50
+_MAX_LIMIT = 200
 
-def get_all_participants(session: Session) -> list[Participant]:
-    """Return all participants in the database."""
-    return session.exec(select(Participant)).all()
+
+def get_all_participants(
+    session: Session,
+    *,
+    skip: int = 0,
+    limit: int = _DEFAULT_LIMIT,
+) -> tuple[int, list[Participant]]:
+    """
+    Return a (total_count, page_items) tuple.
+
+    ``total`` is the full dataset size (ignoring pagination) so the caller
+    can build a proper paginated response without a second round-trip.
+    """
+    total = session.exec(select(func.count(Participant.participant_id))).one()
+    items = session.exec(select(Participant).offset(skip).limit(limit)).all()
+    return total, items
 
 
 def get_participant_by_id(session: Session, participant_id: UUID) -> Participant | None:

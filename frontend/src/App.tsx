@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { apiClient } from './api/client';
-import { Participant, ParticipantCreate, StudyGroup, ParticipantStatus, Gender } from './types';
+import { Participant, ParticipantCreate, PaginatedResponse, StudyGroup, ParticipantStatus, Gender } from './types';
 
 type Page = 'login' | 'dashboard' | 'participants' | 'add_subject';
 
@@ -32,9 +32,10 @@ export default function App() {
   const [groupFilter, setGroupFilter] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
 
-  // Pagination state
+  // Pagination state (server-side)
+  const PAGE_SIZE = 10;
   const [currentPageIndex, setCurrentPageIndex] = useState(1);
-  const itemsPerPage = 6;
+  const [totalItems, setTotalItems] = useState(0);
 
   // New Participant form state
   const [formData, setFormData] = useState<ParticipantCreate>({
@@ -114,15 +115,19 @@ export default function App() {
     }
   };
 
-  // Fetch participants
-  const fetchParticipants = async () => {
+  // Fetch participants (server-side pagination)
+  const fetchParticipants = async (page: number = currentPageIndex) => {
     try {
       setLoading(true);
       setError(null);
-      // Attach JWT token to auth headers if present
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
-      const response = await apiClient.get<Participant[]>('/api/v1/participants', { headers });
-      setParticipants(response.data);
+      const skip = (page - 1) * PAGE_SIZE;
+      const response = await apiClient.get<PaginatedResponse<Participant>>(
+        `/api/v1/participants?skip=${skip}&limit=${PAGE_SIZE}`,
+        { headers }
+      );
+      setParticipants(response.data.items ?? []);
+      setTotalItems(response.data.total ?? 0);
     } catch (err: any) {
       setError(err.message || 'Failed to query trial participants.');
     } finally {
@@ -132,7 +137,7 @@ export default function App() {
 
   useEffect(() => {
     if (token) {
-      fetchParticipants();
+      fetchParticipants(1);
     }
   }, [token]);
 
@@ -173,7 +178,8 @@ export default function App() {
     try {
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       await apiClient.delete(`/api/v1/participants/${id}`, { headers });
-      setParticipants(prev => prev.filter(p => p.participant_id !== id));
+      // Refresh current page (item count may have changed)
+      fetchParticipants(currentPageIndex);
     } catch (err: any) {
       alert(err.message || 'Delete operation failed.');
     }
@@ -188,10 +194,12 @@ export default function App() {
 
       const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await apiClient.post<Participant>('/api/v1/participants', formData, { headers });
-      
-      setParticipants(prev => [response.data, ...prev]);
+
       setLastRegisteredId(response.data.subject_id);
       setShowSuccessModal(true);
+      // Go back to page 1 to see the new entry
+      setCurrentPageIndex(1);
+      fetchParticipants(1);
 
       // Reset form
       setFormData({
@@ -210,44 +218,16 @@ export default function App() {
     }
   };
 
-  // Stats derivation
-  const totalParticipantsCount = participants.length;
-  const treatmentCount = participants.filter(p => p.study_group === 'treatment').length;
-  const controlCount = participants.filter(p => p.study_group === 'control').length;
-  const activeCount = participants.filter(p => p.status === 'active').length;
-  const completedCount = participants.filter(p => p.status === 'completed').length;
-  // const withdrawnCount = participants.filter(p => p.status === 'withdrawn').length;
+  // Derived pagination
+  const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
 
-  const treatmentPercentage = totalParticipantsCount > 0 ? Math.round((treatmentCount / totalParticipantsCount) * 100) : 55;
-  const controlPercentage = totalParticipantsCount > 0 ? Math.round((controlCount / totalParticipantsCount) * 100) : 45;
-  const retentionRate = totalParticipantsCount > 0 ? Math.round(((activeCount + completedCount) / totalParticipantsCount) * 100) : 94;
-
-  const averageAge = totalParticipantsCount > 0 
-    ? Math.round(participants.reduce((sum, p) => sum + p.age, 0) / totalParticipantsCount) 
-    : 45.2;
-
-  const maleCount = participants.filter(p => p.gender === 'M').length;
-  const femaleCount = participants.filter(p => p.gender === 'F').length;
-  // const otherCount = participants.filter(p => p.gender === 'Other').length;
-
-  const malePercentage = totalParticipantsCount > 0 ? Math.round((maleCount / totalParticipantsCount) * 100) : 52;
-  const femalePercentage = totalParticipantsCount > 0 ? Math.round((femaleCount / totalParticipantsCount) * 100) : 46;
-  const otherPercentage = totalParticipantsCount > 0 ? 100 - malePercentage - femalePercentage : 2;
-
-  // Filtered lists
+  // Client-side search filter (applied to the current page only)
   const filteredParticipants = participants.filter(p => {
     const matchesSearch = p.subject_id.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesGroup = groupFilter === 'all' || p.study_group === groupFilter;
     const matchesStatus = statusFilter === 'all' || p.status === statusFilter;
     return matchesSearch && matchesGroup && matchesStatus;
   });
-
-  // Paginated lists
-  const totalPages = Math.ceil(filteredParticipants.length / itemsPerPage) || 1;
-  const paginatedParticipants = filteredParticipants.slice(
-    (currentPageIndex - 1) * itemsPerPage,
-    currentPageIndex * itemsPerPage
-  );
 
   // Helper date formatter
   const formatDateString = (dateStr: string) => {
@@ -499,6 +479,7 @@ export default function App() {
                   onChange={e => {
                     setSearchTerm(e.target.value);
                     setCurrentPageIndex(1);
+                    fetchParticipants(1);
                   }}
                 />
               </div>
@@ -524,7 +505,7 @@ export default function App() {
                 <span>{error}</span>
               </div>
               <button 
-                onClick={fetchParticipants}
+                onClick={() => fetchParticipants(currentPageIndex)}
                 className="px-3 py-1 bg-red-100 hover:bg-red-200 rounded border border-red-300 font-semibold"
               >
                 Retry Query
@@ -559,107 +540,7 @@ export default function App() {
                 </div>
               </div>
 
-              {/* KPI Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-lg">
-                
-                {/* KPI: Total Participants */}
-                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
-                  <div className="flex justify-between items-start">
-                    <div className="p-2.5 bg-primary-fixed text-primary rounded-lg">
-                      <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>group</span>
-                    </div>
-                    <span className="text-tertiary font-data-mono text-xs flex items-center gap-0.5 bg-tertiary-fixed px-1.5 py-0.5 rounded font-semibold">
-                      <span className="material-symbols-outlined text-[14px]">trending_up</span>
-                      <span>+12%</span>
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-label-sm text-label-sm text-on-surface-variant">Total Participants</p>
-                    <h4 className="font-display-lg text-3xl font-bold text-on-surface">{loading ? '...' : totalParticipantsCount}</h4>
-                  </div>
-                </div>
-
-                {/* KPI: Distribution Ratio */}
-                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
-                  <div className="flex justify-between items-start">
-                    <div className="p-2.5 bg-secondary-container text-secondary rounded-lg">
-                      <span className="material-symbols-outlined">balance</span>
-                    </div>
-                    <span className="font-label-sm text-xs text-on-surface-variant font-medium">Target: 1:1</span>
-                  </div>
-                  
-                  <div className="space-y-2 mt-2">
-                    <div>
-                      <div className="flex justify-between text-[10px] mb-1">
-                        <span className="font-semibold text-slate-700">Treatment (A)</span>
-                        <span className="text-primary font-bold">{treatmentPercentage}%</span>
-                      </div>
-                      <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-                        <div className="h-full bg-primary transition-all duration-500" style={{ width: `${treatmentPercentage}%` }}></div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="flex justify-between text-[10px] mb-1">
-                        <span className="font-semibold text-slate-500">Control (B)</span>
-                        <span className="text-on-surface-variant font-semibold">{controlPercentage}%</span>
-                      </div>
-                      <div className="h-1.5 bg-surface-container-high rounded-full overflow-hidden">
-                        <div className="h-full bg-outline-variant transition-all duration-500" style={{ width: `${controlPercentage}%` }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* KPI: Retention Rate */}
-                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
-                  <div className="flex justify-between items-start">
-                    <div className="p-2.5 bg-tertiary-container/10 text-tertiary rounded-lg">
-                      <span className="material-symbols-outlined">hourglass_empty</span>
-                    </div>
-                    <span className="text-[10px] text-on-surface-variant font-medium italic text-right leading-tight">
-                      Active Monitoring Rate
-                    </span>
-                  </div>
-                  <div>
-                    <p className="font-label-sm text-label-sm text-on-surface-variant">Retention Rate</p>
-                    <div className="flex items-baseline gap-1.5">
-                      <h4 className="font-display-lg text-3xl font-bold text-on-surface">{retentionRate}%</h4>
-                      <span className="text-primary font-bold text-xs">↑ 0.4%</span>
-                    </div>
-                    <div className="mt-2 h-1 w-full bg-tertiary-fixed rounded-full overflow-hidden">
-                      <div className="h-full bg-tertiary transition-all duration-500" style={{ width: `${retentionRate}%` }}></div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* KPI: Demographics */}
-                <div className="bg-surface-container-lowest p-lg rounded-xl shadow-sm border border-outline-variant/10 flex flex-col justify-between h-40">
-                  <div className="flex justify-between items-start">
-                    <div className="p-2.5 bg-primary-fixed text-primary rounded-lg">
-                      <span className="material-symbols-outlined">analytics</span>
-                    </div>
-                    <div className="text-right">
-                      <p className="font-label-sm text-[10px] text-on-surface-variant font-semibold uppercase tracking-wider">Avg Age</p>
-                      <p className="font-bold text-primary text-base">{averageAge}</p>
-                    </div>
-                  </div>
-                  
-                  <div className="mt-2">
-                    <p className="font-label-sm text-[10px] text-on-surface-variant mb-1 font-semibold">Gender Split</p>
-                    <div className="flex items-center h-2.5 rounded-full overflow-hidden w-full border border-surface-container-high bg-slate-100">
-                      <div className="h-full bg-primary transition-all duration-500" style={{ width: `${malePercentage}%` }} title={`Male ${malePercentage}%`}></div>
-                      <div className="h-full bg-secondary-fixed-dim transition-all duration-500" style={{ width: `${femalePercentage}%` }} title={`Female ${femalePercentage}%`}></div>
-                      <div className="h-full bg-inverse-surface transition-all duration-500" style={{ width: `${otherPercentage}%` }} title={`Other ${otherPercentage}%`}></div>
-                    </div>
-                    <div className="flex justify-between mt-1.5 text-[9px] font-semibold text-on-surface-variant">
-                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-primary rounded-full"></span> M {malePercentage}%</span>
-                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-secondary-fixed-dim rounded-full"></span> F {femalePercentage}%</span>
-                      <span className="flex items-center gap-0.5"><span className="w-1.5 h-1.5 bg-inverse-surface rounded-full"></span> O {otherPercentage}%</span>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
+              {/* KPI Cards removed — stats require a dedicated backend endpoint */}
 
               {/* Main grids details */}
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-lg">
@@ -739,7 +620,7 @@ export default function App() {
                     </div>
                   </div>
                   <div className="p-4 border-t border-outline-variant/20 bg-slate-50/50 text-center text-xs text-on-surface-variant/80">
-                    Database holds {totalParticipantsCount} total test cases.
+                          {loading ? '...' : totalItems}
                   </div>
                 </div>
 
@@ -810,11 +691,13 @@ export default function App() {
                 <div className="flex items-center gap-sm">
                   <div className="bg-surface-container-highest px-4 py-2 rounded-lg flex items-center gap-2 border border-outline-variant/10">
                     <span className="font-label-sm text-[10px] text-on-surface-variant uppercase font-semibold">Total Subjects</span>
-                    <span className="font-headline-md text-lg font-bold text-primary">{totalParticipantsCount}</span>
+                    <span className="font-headline-md text-lg font-bold text-primary">{loading ? '...' : totalItems}</span>
                   </div>
                   <div className="bg-surface-container-highest px-4 py-2 rounded-lg flex items-center gap-2 border border-outline-variant/10">
                     <span className="font-label-sm text-[10px] text-on-surface-variant uppercase font-semibold">Active</span>
-                    <span className="font-headline-md text-lg font-bold text-tertiary">{activeCount}</span>
+                    <span className="font-headline-md text-lg font-bold text-tertiary">
+                      {loading ? '...' : participants.filter(p => p.status === 'active').length}
+                    </span>
                   </div>
                 </div>
 
@@ -881,7 +764,7 @@ export default function App() {
                         <tr>
                           <td colSpan={7} className="text-center py-16 text-on-surface-variant font-medium">Querying database engine...</td>
                         </tr>
-                      ) : paginatedParticipants.length === 0 ? (
+                      ) : filteredParticipants.length === 0 ? (
                         <tr>
                           <td colSpan={7} className="text-center py-16 text-on-surface-variant">
                             <span className="material-symbols-outlined text-4xl text-outline mb-2">help_outline</span>
@@ -890,7 +773,7 @@ export default function App() {
                           </td>
                         </tr>
                       ) : (
-                        paginatedParticipants.map((p) => (
+                        filteredParticipants.map((p) => (
                           <tr key={p.participant_id} className="hover:bg-surface-container-low transition-colors group">
                             
                             {/* Subject ID */}
@@ -974,12 +857,16 @@ export default function App() {
                 {/* Pagination */}
                 <div className="px-lg py-4 flex items-center justify-between bg-surface-container-low border-t border-outline-variant/30 text-xs">
                   <span className="font-body-md text-on-surface-variant">
-                    Showing {(currentPageIndex - 1) * itemsPerPage + 1} to {Math.min(currentPageIndex * itemsPerPage, filteredParticipants.length)} of {filteredParticipants.length} entries
+                    Page {currentPageIndex} of {totalPages} — {totalItems} total entries
                   </span>
                   
                   <div className="flex items-center gap-1.5">
                     <button 
-                      onClick={() => setCurrentPageIndex(prev => Math.max(prev - 1, 1))}
+                      onClick={() => {
+                        const prev = Math.max(currentPageIndex - 1, 1);
+                        setCurrentPageIndex(prev);
+                        fetchParticipants(prev);
+                      }}
                       disabled={currentPageIndex === 1}
                       className="p-1.5 rounded hover:bg-surface-variant text-outline disabled:opacity-30 disabled:hover:bg-transparent"
                     >
@@ -989,7 +876,10 @@ export default function App() {
                     {Array.from({ length: totalPages }).map((_, i) => (
                       <button
                         key={i}
-                        onClick={() => setCurrentPageIndex(i + 1)}
+                        onClick={() => {
+                          setCurrentPageIndex(i + 1);
+                          fetchParticipants(i + 1);
+                        }}
                         className={`w-7 h-7 rounded text-xs font-semibold transition-colors ${
                           currentPageIndex === i + 1
                             ? 'bg-primary text-on-primary'
@@ -1001,7 +891,11 @@ export default function App() {
                     ))}
                     
                     <button 
-                      onClick={() => setCurrentPageIndex(prev => Math.min(prev + 1, totalPages))}
+                      onClick={() => {
+                        const next = Math.min(currentPageIndex + 1, totalPages);
+                        setCurrentPageIndex(next);
+                        fetchParticipants(next);
+                      }}
                       disabled={currentPageIndex === totalPages}
                       className="p-1.5 rounded hover:bg-surface-variant text-outline disabled:opacity-30 disabled:hover:bg-transparent"
                     >

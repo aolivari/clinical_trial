@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlmodel import Session
 
 from app.core.database import get_db
@@ -14,7 +14,7 @@ from app.crud.participant import (
     get_participant_by_subject_id,
     update_participant,
 )
-from app.schemas import ParticipantCreate, ParticipantResponse, ParticipantUpdate
+from app.schemas import ParticipantCreate, ParticipantListResponse, ParticipantResponse, ParticipantUpdate
 
 logger = get_logger(__name__)
 
@@ -25,10 +25,15 @@ router = APIRouter(
 )
 
 
-@router.get("", response_model=list[ParticipantResponse])
-def list_participants(session: Session = Depends(get_db)):
-    """Fetch all clinical trial participants. Requires authorization."""
-    return get_all_participants(session)
+@router.get("", response_model=ParticipantListResponse)
+def list_participants(
+    skip: int = Query(default=0, ge=0, description="Number of records to skip"),
+    limit: int = Query(default=50, ge=1, le=200, description="Max records to return (1-200)"),
+    session: Session = Depends(get_db),
+):
+    """Fetch a paginated list of clinical trial participants. Requires authorization."""
+    total, items = get_all_participants(session, skip=skip, limit=limit)
+    return ParticipantListResponse(total=total, skip=skip, limit=limit, items=items)
 
 
 @router.get("/{participant_id}", response_model=ParticipantResponse)
