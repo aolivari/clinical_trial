@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
 interface SessionExpiredModalProps {
   email?: string;
@@ -6,19 +6,23 @@ interface SessionExpiredModalProps {
   onCancel: () => void;
 }
 
-export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ email, onRelogin, onCancel }) => {
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
+export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({
+  email,
+  onRelogin,
+  onCancel,
+}) => {
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
+    setError("");
     setIsSubmitting(true);
     try {
       await onRelogin(password);
     } catch (err) {
-      setError('Contraseña incorrecta. Por favor intenta de nuevo.');
+      setError("Password incorrect please try again.");
     } finally {
       setIsSubmitting(false);
     }
@@ -29,14 +33,17 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ email,
       <div className="bg-surface-container-lowest rounded-2xl shadow-2xl max-w-md w-full p-xl border border-outline-variant/30">
         <div className="flex justify-center mb-6">
           <div className="w-16 h-16 bg-error/10 rounded-full flex items-center justify-center">
-            <span className="material-symbols-outlined text-error text-3xl">lock_clock</span>
+            <span className="material-symbols-outlined text-error text-3xl">
+              lock_clock
+            </span>
           </div>
         </div>
         <h2 className="font-display-md text-xl font-bold text-on-surface text-center mb-2">
           Your session has expired
         </h2>
         <p className="text-sm text-on-surface-variant text-center mb-8">
-          Please enter your password for <strong>{email}</strong> to resume your session securely without losing your progress.
+          Please enter your password for <strong>{email}</strong> to resume your
+          session securely without losing your progress.
         </p>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -45,9 +52,12 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ email,
               {error}
             </div>
           )}
-          
+
           <div>
-            <label className="block text-xs font-semibold text-on-surface-variant mb-1" htmlFor="password">
+            <label
+              className="block text-xs font-semibold text-on-surface-variant mb-1"
+              htmlFor="password"
+            >
               Password
             </label>
             <input
@@ -77,11 +87,13 @@ export const SessionExpiredModal: React.FC<SessionExpiredModalProps> = ({ email,
             >
               {isSubmitting ? (
                 <>
-                  <span className="material-symbols-outlined animate-spin text-[16px]">refresh</span>
+                  <span className="material-symbols-outlined animate-spin text-[16px]">
+                    refresh
+                  </span>
                   Verifying...
                 </>
               ) : (
-                'Resume Session'
+                "Resume Session"
               )}
             </button>
           </div>
