@@ -10,7 +10,8 @@ from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
 from app.core.database import init_db, get_db, engine
-from app.models import Participant
+from app.models import Participant, User
+from app.core.security import hash_password
 from app.routers import auth_router, participants_router
 
 # Setup logging
@@ -91,6 +92,24 @@ async def lifespan(app: FastAPI):
             logger.info("Mock participant seeding completed successfully.")
         else:
             logger.info(f"Database already contains {len(existing)} participants.")
+            
+        # Seed database with mock researcher user if empty
+        statement_users = select(User)
+        existing_users = session.exec(statement_users).all()
+        if not existing_users:
+            logger.info("Users database is empty. Seeding default researcher user...")
+            default_user = User(
+                user_id=uuid4(),
+                email="researcher@clintrack.com",
+                hashed_password=hash_password("password123"),
+                username="Dr. Aris Thorne",
+                role="Lead Investigator"
+            )
+            session.add(default_user)
+            session.commit()
+            logger.info("Default researcher user seeding completed.")
+        else:
+            logger.info(f"Users database contains {len(existing_users)} users.")
     yield
 
 app = FastAPI(

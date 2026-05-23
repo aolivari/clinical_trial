@@ -8,7 +8,7 @@ engine = create_engine(DATABASE_URL, echo=True, connect_args=connect_args)
 
 def init_db():
     # Import models here to ensure they are registered with SQLModel's metadata
-    from app.models.participant import Participant
+    from app.models import Participant, User, RefreshToken
     SQLModel.metadata.create_all(engine)
 
 # Dependency for endpoints (Guarantees the session is always closed)
