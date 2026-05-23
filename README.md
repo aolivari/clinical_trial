@@ -1,172 +1,175 @@
-# ClinTrack Pro - Panel de Datos de Ensayos Clínicos
+# ClinTrack Pro - Clinical Trial Data Dashboard
 
-Este repositorio contiene la estructura inicial, contenedorizada y modular para un panel de análisis y gestión de sujetos en ensayos clínicos de Fase III. La arquitectura sigue el patrón de diseño de **monorrepo** y ha sido integrada visualmente a partir de los diseños exportados de Google Stitch.
+This repository contains the containerized and modularized workspace for a Phase III clinical trial subject management and analytics dashboard. The architecture follows a monorepo design pattern and is visually integrated with Google Stitch design systems.
 
 ---
 
-## 📁 Estructura del Proyecto
+## 📁 Project Structure
 
-La estructura actual del repositorio sigue las mejores prácticas de modularidad:
+The repository follows a clean, modular layout to separate concerns between the backend services and the frontend client:
 
 ```text
 laboratorio/
-├── backend/                  # API y Base de Datos (Python + FastAPI)
+├── backend/                  # API & Database Services (Python + FastAPI)
 │   ├── app/
-│   │   ├── database.py       # Configuración de SQLite y gestión de sesiones (Depends)
-│   │   ├── models.py         # Tablas y entidades de base de datos (SQLModel)
-│   │   ├── schemas.py        # Validaciones de entrada/salida y modelos JWT (Pydantic)
-│   │   ├── test_main.py      # Casos de prueba automatizados (pytest)
-│   │   └── main.py           # Rutas, Middleware de CORS, control de errores, JWT Auth y lifespan
-│   ├── Dockerfile            # Construcción multi-etapa optimizada
-│   └── requirements.txt      # Dependencias de Python (FastAPI, SQLModel, PyJWT, pytest, etc.)
-├── frontend/                 # Interfaz de Usuario (React + TS + Vite + Tailwind CSS)
+│   │   ├── core/
+│   │   │   ├── config.py     # Database and security configurations
+│   │   │   ├── database.py   # SQLModel engine and session dependency (get_db)
+│   │   │   ├── logging.py    # Structured logging setups
+│   │   │   └── security.py   # Password hashing and JWT generation utils
+│   │   ├── crud/             # Create, Read, Update, Delete queries
+│   │   ├── models/           # SQLModel database entity classes
+│   │   ├── routers/          # FastAPI routes (auth, participants)
+│   │   ├── schemas/          # Pydantic models for validation
+│   │   ├── conftest.py       # Pytest configuration and isolated database fixture
+│   │   ├── test_main.py      # Automated API integration and unit tests
+│   │   └── main.py           # Application entry point & lifespan events
+│   ├── Dockerfile            # Optimized backend build recipe
+│   └── requirements.txt      # Python package dependencies
+├── frontend/                 # User Interface Client (React + TS + Vite + Tailwind CSS)
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── client.ts     # Cliente Axios configurado para comunicar con la API
-│   │   ├── App.tsx           # Componente principal con los 4 flujos integrados de Stitch
-│   │   ├── types.ts          # Interfaces de tipado TypeScript estrictas
-│   │   ├── index.css         # Inyección de Tailwind y scrollbars personalizadas
-│   │   ├── vite-env.d.ts     # Tipado de cliente y variables de entorno para Vite
-│   │   └── main.tsx          # Punto de entrada de React
-│   ├── index.html            # Plantilla base HTML con fuentes y Google Material Symbols
-│   ├── tailwind.config.js    # Paleta de colores extendida del sistema de diseño
-│   ├── postcss.config.js     # Configuración de PostCSS
-│   ├── tsconfig.json         # Configuración estricta de TypeScript
-│   └── Dockerfile            # Contenedor de desarrollo (Node 20 Slim)
-├── docker-compose.yml        # Orquestación de contenedores locales
-├── .gitignore                # Reglas de exclusión de Git para caché y SQLite local
-└── README.md                 # Documentación principal (este archivo)
+│   │   │   └── client.ts     # Axios client equipped with automated JWT request interceptor
+│   │   ├── context/
+│   │   │   └── AuthContext.tsx # React Context for global auth state and hooks (useAuth)
+│   │   ├── types/
+│   │   │   └── index.ts      # Strictly-typed domain models and API payload contracts
+│   │   ├── services/
+│   │   │   ├── auth.service.ts       # Service layer for authentication endpoints
+│   │   │   └── participant.service.ts # Service layer for participant CRUD queries
+│   │   ├── hooks/
+│   │   │   └── useParticipants.ts    # Custom TanStack Query queries & mutations
+│   │   ├── routes/
+│   │   │   └── AppRoutes.tsx # App route configuration & protected route guards
+│   │   ├── ui/
+│   │   │   ├── components/   # Reusable UI widgets (e.g., ParticipantDetailsModal)
+│   │   │   ├── layouts/      # Dashboard layouts (e.g., AppLayout sidebar and header)
+│   │   │   └── pages/        # Standalone views (LoginPage, DashboardPage, etc.)
+│   │   ├── App.tsx           # Entry wrapper for global QueryClient and Router Providers
+│   │   ├── index.css         # Tailwind injection & custom styled scrollbars
+│   │   ├── vite-env.d.ts     # Vite environment variables typings
+│   │   └── main.tsx          # React application mount script
+│   ├── index.html            # Core HTML template containing Google Material Symbols
+│   ├── tailwind.config.js    # System design color tokens config
+│   ├── postcss.config.js     # PostCSS configurations
+│   ├── tsconfig.json         # Strict TypeScript compiler options
+│   └── Dockerfile            # Node 20 Slim development image
+├── docker-compose.yml        # Multi-container local execution orchestrator
+├── .gitignore                # Git exclusions rules for local caches and databases
+└── README.md                 # Primary documentation (this file)
 ```
 
 ---
 
-## 🛠️ Tecnologías Utilizadas
+## 🛠️ Technology Stack
 
-*   **Backend**: Python 3.11, FastAPI (Routing y ciclo de vida), SQLModel/SQLAlchemy (ORM compatible con Pydantic), SQLite (Base de datos local persistente), PyJWT (Generación de tokens JWT), Pytest (Pruebas unitarias).
-*   **Frontend**: React 18, TypeScript, Vite (Servidor de desarrollo y HMR), Tailwind CSS v3 (Estilos basados en tokens de diseño), Axios (Llamadas a API), Google Material Symbols (Iconos).
-*   **Contenedores**: Docker y Docker Compose para empaquetado y portabilidad.
-
----
-
-## 🚀 Guía de Inicio Rápido (Desarrollo Local)
-
-Para garantizar la máxima velocidad de desarrollo y evitar bloqueos en la red virtual de Docker (WSL2), se recomienda usar el **Esquema de Ejecución Híbrido** (Backend en Docker y Frontend local en tu máquina).
-
-### Requisitos Previos
-*   Tener **Docker Desktop** iniciado y corriendo.
-*   Tener **Node.js 20+** instalado localmente.
+*   **Backend**: Python 3.11, FastAPI (Lifespan events and Routing), SQLModel/SQLAlchemy (ORM compatible with Pydantic), SQLite (Local persistent DB), PyJWT (JSON Web Token security), Pytest (Automated test suites).
+*   **Frontend**: React 18, TypeScript, Vite (HMR and dev server), Tailwind CSS v3 (Utility classes), React Router v6 (Data routers), TanStack Query v5 (Server state caching and queries), Google Material Symbols.
+*   **Containers**: Docker and Docker Compose.
 
 ---
 
-### Paso 1: Levantar el Backend (Docker)
-Construye la imagen del backend e inicia el contenedor en segundo plano:
+## 🚀 How to Run the Application
+
+The entire application runs inside Docker. Both the frontend client and backend API services are orchestrated together using Docker Compose.
+
+### Prerequisites
+*   Ensure **Docker Desktop** is installed and running.
+
+---
+
+### Step 1: Spin Up the Stack
+Run the following command in the project root directory:
 ```bash
-# Construir la imagen del backend
-docker build -t laboratorio-backend ./backend
-
-# Correr el contenedor en el puerto 8000
-docker run -d -p 8000:8000 --name clintrack-backend laboratorio-backend
+docker-compose up -d --build
 ```
-*Puedes verificar que la API está activa y conectada a la base de datos visitando `http://localhost:8000/health` en tu navegador.*
+This builds both images and runs the containers in the background:
+*   **Frontend Client**: Accessible at `http://localhost:3000`
+*   **Backend API**: Accessible at `http://localhost:8000`
+*   *Health check endpoint:* `http://localhost:8000/health` (verify database connectivity).
+
+> [!TIP]
+> **Dependency updates inside Docker:**
+> If you install new packages or change dependencies in the host `package.json` files, make sure to tear down old volumes before rebuilding:
+> ```bash
+> docker-compose down -v
+> docker-compose up -d --build
+> ```
+> This clears cached anonymous volumes (like `/app/node_modules`) and reinstalls fresh dependencies.
 
 ---
 
-### Paso 2: Iniciar el Frontend (Local en Windows)
-Entra en la carpeta del frontend, instala las dependencias de Node de forma nativa e inicia el servidor Vite:
+## 🧪 How to Run Tests
+
+The backend features an automated test suite validating the API health, JWT login flow, and CRUD operations (authorized vs. unauthorized routes).
+
+### Isolated Test Database
+The test execution is completely isolated from local development data. A pytest session-scoped fixture in [conftest.py](file:///c:/personal/laboratorio/backend/app/conftest.py) redirects all database writes to a temporary SQLite file (`test_clinical_trial.db`) and destroys it cleanly when the test session finishes.
+
+To run the test suite inside the running Docker container:
 ```bash
-# Entrar a la carpeta del frontend
-cd frontend
-
-# Instalar dependencias
-npm install
-
-# Iniciar servidor local
-npm run dev
-```
-*Esto iniciará el servidor de desarrollo y te indicará la URL (usualmente `http://localhost:3000` o `http://localhost:5173`).*
-
----
-
-## 🧪 Pruebas Automatizadas (Test Suite)
-
-El backend cuenta con una suite de pruebas automatizadas que valida la salud de la API, el proceso de login por JWT y las llamadas CRUD autorizadas / no autorizadas.
-
-### Cómo ejecutar las pruebas
-Para correr el suite de pruebas en tu entorno virtual local (desde la raíz de `backend/`):
-```bash
-# Activar entorno virtual
-.\venv\Scripts\activate
-
-# Instalar dependencias con pytest
-pip install -r requirements.txt
-
-# Ejecutar pytest apuntando a la carpeta de la app
-python -m pytest app/
-```
-
-Alternativamente, puedes ejecutarlas dentro del contenedor Docker sin instalar nada localmente:
-```bash
-docker exec -it clintrack-backend python -m pytest app/
+docker exec -e PYTHONPATH=. laboratorio-backend-1 pytest
 ```
 
 ---
 
-## 🔑 Autenticación y Rutas Protegidas
+## 🔑 Authentication & Protected Routes
 
-El backend protege todas las rutas CRUD de participantes (`/api/v1/participants`) utilizando cabeceras **Bearer JWT**.
+All participant CRUD routes (`/api/v1/participants`) are protected using **Bearer JWT** authorization headers.
 
-### Credenciales Predefinidas
-*   **Correo Electrónico**: `researcher@clintrack.com`
-*   **Contraseña**: `password123`
+### Pre-seeded Credentials
+*   **Email**: `researcher@clintrack.com`
+*   **Password**: `password123`
 
-### Cómo probar la ruta protegida manualmente
-1. **Paso 1: Obtener el Token JWT**
-   Realiza una petición POST a `/api/v1/auth/login`:
+### Manual API Verification (curl)
+1. **Step 1: Obtain a JWT Access Token**
+   Submit a POST request to `/api/v1/auth/login`:
    ```bash
    curl -X POST http://localhost:8000/api/v1/auth/login \
      -H "Content-Type: application/json" \
      -d '{"email": "researcher@clintrack.com", "password": "password123"}'
    ```
-   *Esto te devolverá un JSON con la propiedad `access_token`.*
+   *This yields a JSON response containing an `access_token`.*
 
-2. **Paso 2: Consultar la Ruta Protegida**
-   Usa el token obtenido para consultar los participantes:
+2. **Step 2: Access Protected Resource**
+   Send a GET request to the participants endpoint passing the token:
    ```bash
    curl -X GET http://localhost:8000/api/v1/participants \
-     -H "Authorization: Bearer INSERTA_AQUI_EL_TOKEN"
+     -H "Authorization: Bearer YOUR_ACCESS_TOKEN_HERE"
    ```
-   *Si no provees la cabecera correcta, recibirás un error `403 Forbidden`.*
+   *Omitting or providing an incorrect token results in a `403 Forbidden` response.*
 
 ---
 
-## 📈 Observabilidad y Monitoreo (Roadmap)
+## 📈 Observability & Monitoring (Roadmap)
 
-En una versión productiva, implementaríamos las siguientes prácticas de observabilidad:
-1. **Métricas con Prometheus**: Exponer un endpoint `/metrics` en FastAPI usando `prometheus-client` para medir tiempos de respuesta de endpoints, tasa de error y uso de memoria.
-2. **Trazas Distribuidas con OpenTelemetry**: Instrumentar FastAPI y Axios para enviar trazas distribuidas a colectores como Jaeger o AWS X-Ray, permitiendo visualizar la latencia de extremo a extremo.
-3. **Logs Estructurados (JSON)**: Sustituir el formateador de Python por defecto por `structlog` para generar registros estructurados en JSON listos para ser consumidos por agregadores de logs (Datadog, Kibana o Grafana Loki).
-
----
-
-## 🔄 Pipeline CI/CD (Roadmap)
-
-El flujo de integración y despliegue continuo propuesto mediante GitHub Actions incluye:
-1. **Linter & Type Checking**: Ejecución automática de `flake8` / `black` para Python y `eslint` / `tsc` para React ante cada Pull Request.
-2. **Unit Tests Run**: Ejecución del suite de `pytest` en un ambiente Docker efímero.
-3. **Build & Push**: Construcción de las imágenes Docker de frontend y backend, y almacenamiento en AWS ECR o Docker Hub.
-4. **Deploy**: Actualización automática de las tareas de Amazon ECS o Kubernetes utilizando infraestructura como código (Terraform).
+For production deployment, the following observability enhancements are recommended:
+1. **Metrics with Prometheus**: Expose a `/metrics` route in FastAPI via `prometheus-client` to monitor response latency, error rates, and resource utilization.
+2. **Distributed Tracing with OpenTelemetry**: Instrument FastAPI and Axios endpoints to dispatch traces to collectors (Jaeger, Zipkin, or AWS X-Ray) for end-to-end latency analysis.
+3. **Structured Logging (JSON)**: Replace standard python logging formatters with `structlog` to output structured JSON logs, optimizing ingestion into aggregators like Datadog, Kibana, or Grafana Loki.
 
 ---
 
-## ⚖️ Trade-offs (Decisiones de Diseño)
+## 🔄 CI/CD Pipeline (Roadmap)
 
-*   **SQLite sobre PostgreSQL**: Se optó por SQLite para agilizar la puesta en marcha en desarrollo local y evitar requerir levantar motores adicionales de base de datos complejos.
-*   **Ruteo de React basado en Estado**: Para mantener el monorrepo simple y evitar meter complejidad adicional en el boilerplate, se utilizó un estado global (`currentPage`) para navegar entre las vistas de Stitch en lugar de configurar `react-router-dom`.
-*   **Credenciales Estáticas**: Por ser un boilerplate de desafío técnico, el login utiliza credenciales fijas. En producción se integraría contra un proveedor Identity Provider (IdP) como Auth0, Keycloak o Cognito mediante OAuth2 / OIDC.
+The proposed automation pipeline using GitHub Actions involves:
+1. **Linter & Type Checking**: Execute `flake8` / `black` for Python and `eslint` / `tsc` for React on pull request events.
+2. **Ephemeral Tests Run**: Launch `pytest` inside a containerized setup before merging.
+3. **Build & Push**: Package backend and frontend images and push them to registries like AWS ECR or Docker Hub.
+4. **Deploy**: Update target container tasks in Amazon ECS or Kubernetes using Infrastructure as Code (Terraform).
 
 ---
 
-## 🤖 Uso de Herramientas de IA
+## ⚖️ Architectural Decisions & Trade-offs
 
-Este proyecto fue desarrollado en colaboración con **Antigravity**, el asistente de codificación de inteligencia artificial de Google DeepMind.
-*   **Asistencia**: Utilizado para la estructuración del monorrepo, generación de los componentes React a partir del análisis directo de los archivos HTML de Stitch y diseño de la suite de pruebas unitarias automatizadas en pytest.
+*   **SQLite over PostgreSQL**: SQLite was selected to facilitate local development bootstrapping and avoid additional database service requirements.
+*   **Decoupled Frontend Structure**: The initial state-based routing was replaced with a robust SPA architecture featuring React Router and TanStack Query, separating UI components, routes, services, and types to guarantee long-term maintainability.
+*   **Static Identity Seed**: The boilerplate authenticates using hardcoded user accounts. In production, this would integrate with an external Identity Provider (IdP) like Auth0, Keycloak, or Cognito via OAuth2 / OIDC.
+
+---
+
+## 🤖 AI Collaboration
+
+This codebase was developed in collaboration with two Google artificial intelligence platforms:
+*   **Google Stitch (Design AI)**: Generated the initial high-fidelity mockups, visual components, layout tokens, and UI styles.
+*   **Antigravity (Agentic Coding AI by Google DeepMind)**: Structured the monorepo workspace, modularized the monolithic React client into reusable pages and custom hooks (using React Router and TanStack Query), configured secure JWT session handling, and established the isolated pytest database lifecycle.
