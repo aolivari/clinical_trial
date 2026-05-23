@@ -1,4 +1,4 @@
-import { Participant } from '../../../../types';
+
 import { ParticipantDetailsModal } from '../../../components/ParticipantDetailsModal';
 
 import { useParticipantsPage } from '../hooks/useParticipantsPage';

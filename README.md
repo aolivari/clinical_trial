@@ -53,18 +53,12 @@ The repository follows a clean, modular layout to separate concerns:
 laboratorio/
 ├── backend/                  # API & Database Services (Python + FastAPI)
 │   ├── app/
-│   │   ├── core/
-│   │   │   ├── config.py     # Database and security configurations
-│   │   │   ├── database.py   # SQLModel engine and session dependency (get_db)
-│   │   │   ├── logging.py    # Structured logging setups
-│   │   │   └── security.py   # Password hashing and JWT generation utils
-│   │   ├── crud/             # Create, Read, Update, Delete queries
-│   │   ├── models/           # SQLModel database entity classes
-│   │   ├── routers/          # FastAPI routes (auth, participants)
-│   │   ├── schemas/          # Pydantic models for validation
-│   │   ├── conftest.py       # Pytest configuration and isolated database fixture
-│   │   ├── test_main.py      # Automated API integration and unit tests
+│   │   ├── application/      # Use cases and operations (CRUD logic)
+│   │   ├── domain/           # Core business logic and schemas
+│   │   ├── infrastructure/   # Database, models, and external services
+│   │   ├── presentation/     # FastAPI routers and external entrypoints
 │   │   └── main.py           # Application entry point & lifespan events
+│   ├── tests/                # Automated API integration and unit tests
 │   ├── Dockerfile            # Optimized backend build recipe
 │   └── requirements.txt      # Python package dependencies
 ├── frontend/                 # User Interface Client (React + TS + Vite + Tailwind CSS)
@@ -85,7 +79,7 @@ laboratorio/
 │   │   ├── ui/
 │   │   │   ├── components/   # Reusable UI widgets (e.g., ParticipantDetailsModal)
 │   │   │   ├── layouts/      # Dashboard layouts (e.g., AppLayout sidebar and header)
-│   │   │   └── pages/        # Standalone views (LoginPage, DashboardPage, etc.)
+│   │   │   └── pages/        # Feature-Sliced modules (Hooks + UI Components)
 │   │   ├── App.tsx           # Entry wrapper for global QueryClient and Router Providers
 │   │   ├── index.css         # Tailwind injection & custom styled scrollbars
 │   │   ├── vite-env.d.ts     # Vite environment variables typings
@@ -184,7 +178,8 @@ docker exec laboratorio-frontend-1 npm run test
 
 ### Completed Scope
 *   **Complete RESTful API**: Implemented auth endpoints (`/login`, `/refresh`) and participant CRUD endpoints (`/participants`) with Pydantic type validation and error handling.
-*   **Modular SPA Frontend**: Refactored monolithic Stitch mockups into a structured React application containing routing, context authentication, API services, custom hooks, and pages.
+*   **Feature-Sliced Frontend**: Transitioned the monolithic React client into a modern Hook-based architecture, unifying Views and Controllers into feature-sliced folders (`ui/` and `hooks/`) per page.
+*   **Hexagonal Backend**: Refactored the backend into Hexagonal Architecture (Ports and Adapters) separating `domain`, `application`, `infrastructure`, and `presentation` layers.
 *   **Access Guards**: Created a `ProtectedRoute` component to intercept accesses to dashboards and details modals, validating JWTs.
 *   **Details Modal with Editing**: Designed a detail view modal for individual participants that allows real-time edits, syncing changes using React Query mutations.
 *   **Isolated Testing Environment**: Configured a `conftest.py` setup to isolate test data in a separate SQLite database file.

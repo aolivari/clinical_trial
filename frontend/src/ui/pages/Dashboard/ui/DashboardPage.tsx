@@ -61,7 +61,7 @@ export const DashboardPage: React.FC = () => {
             <span>{error.message || 'Failed to query trial participants.'}</span>
           </div>
           <button 
-            onClick={refetch}
+            onClick={() => refetch()}
             className="px-3 py-1 bg-red-100 hover:bg-red-200 rounded border border-red-300 font-semibold"
           >
             Retry Query

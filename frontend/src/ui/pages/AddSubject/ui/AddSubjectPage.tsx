@@ -1,4 +1,4 @@
-import { ParticipantCreate, StudyGroup, ParticipantStatus, Gender } from '../../../../types';
+import { StudyGroup, ParticipantStatus, Gender } from '../../../../types';
 
 import { useAddSubjectPage } from '../hooks/useAddSubjectPage';
 

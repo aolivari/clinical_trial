@@ -58,6 +58,6 @@ export const useParticipantsPage = () => {
     setSelectedParticipantId,
     onDeleteParticipant,
     onRegisterNew,
-    onRetry: refetch,
+    onRetry: () => refetch(),
   };
 };

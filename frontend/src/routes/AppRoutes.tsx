@@ -1,4 +1,4 @@
-import React, { PureComponent } from "react";
+import React from "react";
 import { createBrowserRouter, Navigate } from "react-router-dom";
 import { LoginPage } from "../ui/pages/Login/ui/LoginPage";
 import { AppLayout } from "../ui/layouts/AppLayout";
