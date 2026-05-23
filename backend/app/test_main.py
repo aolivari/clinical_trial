@@ -59,7 +59,7 @@ def test_get_participants_authorized():
 def test_create_participant_authorized():
     """Verify POST succeeds and registers a new case when presenting a valid JWT."""
     # Cleanup database state for P099 if it exists from a previous run
-    from app.database import engine
+    from app.core.database import engine
     from sqlmodel import Session, select
     from app.models import Participant
     with Session(engine) as session:

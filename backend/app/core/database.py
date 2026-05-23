@@ -1,7 +1,5 @@
-import os
 from sqlmodel import create_engine, SQLModel, Session
-
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./clinical_trials.db")
+from app.core.config import DATABASE_URL
 
 # connect_args={"check_same_thread": False} is required only for SQLite
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
@@ -9,6 +7,8 @@ connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite")
 engine = create_engine(DATABASE_URL, echo=True, connect_args=connect_args)
 
 def init_db():
+    # Import models here to ensure they are registered with SQLModel's metadata
+    from app.models.participant import Participant
     SQLModel.metadata.create_all(engine)
 
 # Dependency for endpoints (Guarantees the session is always closed)

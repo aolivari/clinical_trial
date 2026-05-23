@@ -1,40 +1,19 @@
 import logging
 from contextlib import asynccontextmanager
 from datetime import date
-from uuid import UUID, uuid4
-from fastapi import FastAPI, Depends, HTTPException, Request, status
+from uuid import uuid4
+from fastapi import FastAPI, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
-import jwt
 from sqlmodel import Session, select
 
-from app.database import init_db, get_db, engine
+from app.core.database import init_db, get_db, engine
 from app.models import Participant
-from app.schemas import ParticipantCreate, ParticipantResponse, ParticipantUpdate, LoginRequest, LoginResponse
+from app.routers import auth_router, participants_router
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("clinical_trial_api")
-
-# JWT Configuration
-SECRET_KEY = "clintrack_super_secret_session_key_for_trial_phases"
-ALGORITHM = "HS256"
-
-security = HTTPBearer()
-
-def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
-    """Extract and validate JWT token from Bearer Auth header."""
-    token = credentials.credentials
-    try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        return payload
-    except jwt.PyJWTError as e:
-        logger.warning(f"Authentication failed: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token or session expired."
-        )
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -143,12 +122,12 @@ async def global_exception_handler(request: Request, exc: Exception):
         content={"detail": "An internal server error occurred. Please try again later."}
     )
 
-@app.exception_handler(HTTPException)
-async def http_exception_handler(request: Request, exc: HTTPException):
-    logger.warning(f"HTTP exception on request {request.url.path}: {exc.detail}")
+@app.exception_handler(status.HTTP_404_NOT_FOUND)
+async def not_found_exception_handler(request: Request, exc: Exception):
+    logger.warning(f"HTTP 404 exception on request {request.url.path}")
     return JSONResponse(
-        status_code=exc.status_code,
-        content={"detail": exc.detail}
+        status_code=status.HTTP_404_NOT_FOUND,
+        content={"detail": f"The requested resource was not found."}
     )
 
 # Health endpoint
@@ -168,136 +147,6 @@ async def health_check(session: Session = Depends(get_db)):
             content={"status": "error", "database": "disconnected", "detail": str(e)}
         )
 
-# --- Authentication Endpoint ---
-
-@app.post("/api/v1/auth/login", response_model=LoginResponse, tags=["Authentication"])
-def login(payload: LoginRequest):
-    """Authenticate researcher and return JWT token."""
-    if payload.email == "researcher@clintrack.com" and payload.password == "password123":
-        token_payload = {
-            "sub": payload.email,
-            "role": "Lead Investigator",
-            "username": "Dr. Aris Thorne"
-        }
-        access_token = jwt.encode(token_payload, SECRET_KEY, algorithm=ALGORITHM)
-        return LoginResponse(
-            access_token=access_token,
-            token_type="bearer",
-            username="Dr. Aris Thorne",
-            role="Lead Investigator"
-        )
-    
-    raise HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Invalid credentials. Use researcher@clintrack.com and password123."
-    )
-
-# --- Participant Endpoints (CRUD - Secured with JWT) ---
-
-@app.get("/api/v1/participants", response_model=list[ParticipantResponse], tags=["Participants"])
-def get_participants(
-    session: Session = Depends(get_db), 
-    current_user: dict = Depends(get_current_user)
-):
-    """Fetch all clinical trial participants. Requires authorization."""
-    statement = select(Participant)
-    results = session.exec(statement).all()
-    return results
-
-@app.get("/api/v1/participants/{participant_id}", response_model=ParticipantResponse, tags=["Participants"])
-def get_participant(
-    participant_id: UUID, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Fetch a single participant by UUID. Requires authorization."""
-    participant = session.get(Participant, participant_id)
-    if not participant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Participant with ID {participant_id} not found"
-        )
-    return participant
-
-@app.post("/api/v1/participants", response_model=ParticipantResponse, status_code=status.HTTP_201_CREATED, tags=["Participants"])
-def create_participant(
-    participant_in: ParticipantCreate, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Register a new clinical trial participant. Requires authorization."""
-    # Check if subject_id already exists
-    statement = select(Participant).where(Participant.subject_id == participant_in.subject_id)
-    existing = session.exec(statement).first()
-    if existing:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Participant with Subject ID {participant_in.subject_id} already exists"
-        )
-    
-    db_participant = Participant(
-        subject_id=participant_in.subject_id,
-        study_group=participant_in.study_group.value.lower(),
-        enrollment_date=participant_in.enrollment_date,
-        status=participant_in.status.value.lower(),
-        age=participant_in.age,
-        gender=participant_in.gender.value
-    )
-    session.add(db_participant)
-    session.commit()
-    session.refresh(db_participant)
-    return db_participant
-
-@app.put("/api/v1/participants/{participant_id}", response_model=ParticipantResponse, tags=["Participants"])
-def update_participant(
-    participant_id: UUID, 
-    participant_in: ParticipantUpdate, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Update properties of an existing participant. Requires authorization."""
-    db_participant = session.get(Participant, participant_id)
-    if not db_participant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Participant with ID {participant_id} not found"
-        )
-    
-    update_data = participant_in.model_dump(exclude_unset=True)
-    if "subject_id" in update_data and update_data["subject_id"] != db_participant.subject_id:
-        existing = session.exec(
-            select(Participant).where(Participant.subject_id == update_data["subject_id"])
-        ).first()
-        if existing:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Participant with Subject ID {update_data['subject_id']} already exists"
-            )
-            
-    for key, value in update_data.items():
-        if key in ["study_group", "status", "gender"] and value is not None:
-            setattr(db_participant, key, value.value)
-        else:
-            setattr(db_participant, key, value)
-        
-    session.add(db_participant)
-    session.commit()
-    session.refresh(db_participant)
-    return db_participant
-
-@app.delete("/api/v1/participants/{participant_id}", status_code=status.HTTP_204_NO_CONTENT, tags=["Participants"])
-def delete_participant(
-    participant_id: UUID, 
-    session: Session = Depends(get_db),
-    current_user: dict = Depends(get_current_user)
-):
-    """Delete a participant by ID. Requires authorization."""
-    db_participant = session.get(Participant, participant_id)
-    if not db_participant:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Participant with ID {participant_id} not found"
-        )
-    session.delete(db_participant)
-    session.commit()
-    return None
+# Register Routers
+app.include_router(auth_router)
+app.include_router(participants_router)
