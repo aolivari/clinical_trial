@@ -22,7 +22,7 @@ _LOG_LEVEL = getattr(logging, _LOG_LEVEL_NAME, logging.INFO)
 # ---------------------------------------------------------------------------
 # Format
 # Produces lines like:
-#   2026-05-23 19:10:42,381 | INFO     | app.routers.auth     | User researcher@clintrack.com logged in
+#   2026-05-23 19:10:42,381 | INFO     | app.presentation.api.auth     | User researcher@clintrack.com logged in
 # ---------------------------------------------------------------------------
 _FORMATTER = logging.Formatter(
     fmt="%(asctime)s | %(levelname)-8s | %(name)-30s | %(message)s",

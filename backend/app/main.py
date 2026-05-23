@@ -9,11 +9,11 @@ from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
 from sqlalchemy.exc import IntegrityError
 
-from app.core.database import init_db, get_db, engine
+from app.infrastructure.database import init_db, get_db, engine
 from app.core.logging import configure_logging, get_logger
-from app.models import Participant, User
+from app.infrastructure import Participant, User
 from app.core.security import hash_password
-from app.routers import auth_router, participants_router
+from app.presentation.api import auth_router, participants_router
 
 # Configure structured logging before anything else
 configure_logging()
