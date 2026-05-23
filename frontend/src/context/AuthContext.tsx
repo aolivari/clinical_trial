@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User } from '../types';
 import { authService } from '../services/auth.service';
+import { SessionExpiredModal } from '../ui/components/SessionExpiredModal';
 
 interface AuthContextType {
   token: string | null;
@@ -19,6 +20,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const role = localStorage.getItem('role');
     return username && role ? { username, role } : null;
   });
+
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
+
+  useEffect(() => {
+    const handleSessionExpired = () => {
+      // Only show if the user was actually logged in
+      if (localStorage.getItem('token')) {
+        setIsSessionExpired(true);
+      }
+    };
+    window.addEventListener('session_expired', handleSessionExpired as EventListener);
+    return () => window.removeEventListener('session_expired', handleSessionExpired as EventListener);
+  }, []);
 
   const login = async (email: string, password: string) => {
     const response = await authService.login(email, password);
@@ -40,9 +54,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setUser(null);
   };
 
+  const handleRelogin = async (password: string) => {
+    if (!user?.username) return;
+    await login(user.username, password);
+    setIsSessionExpired(false);
+  };
+
+  const handleCancelLogout = () => {
+    setIsSessionExpired(false);
+    logout();
+  };
+
   return (
     <AuthContext.Provider value={{ token, user, isAuthenticated: !!token, login, logout }}>
       {children}
+      {isSessionExpired && user && (
+        <SessionExpiredModal
+          email={user.username}
+          onRelogin={handleRelogin}
+          onCancel={handleCancelLogout}
+        />
+      )}
     </AuthContext.Provider>
   );
 };

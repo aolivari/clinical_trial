@@ -28,6 +28,9 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    if (error.response?.status === 401) {
+      window.dispatchEvent(new CustomEvent("session_expired"));
+    }
     const message =
       error.response?.data?.detail || error.message || "An error occurred";
     console.error("API Error:", message);
