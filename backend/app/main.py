@@ -3,9 +3,11 @@ from contextlib import asynccontextmanager
 from datetime import date
 from uuid import uuid4
 from fastapi import FastAPI, Depends, Request, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlmodel import Session, select
+from sqlalchemy.exc import IntegrityError
 
 from app.core.database import init_db, get_db, engine
 from app.models import Participant
@@ -128,6 +130,23 @@ async def not_found_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=status.HTTP_404_NOT_FOUND,
         content={"detail": f"The requested resource was not found."}
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.warning(f"Validation error on request {request.url.path}: {exc.errors()}")
+    errors = [f"Campo '{err['loc'][-1]}': {err['msg']}" for err in exc.errors()]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": "Error de validación", "errors": errors}
+    )
+
+@app.exception_handler(IntegrityError)
+async def integrity_exception_handler(request: Request, exc: IntegrityError):
+    logger.error(f"Database integrity error on request {request.url.path}: {exc}")
+    return JSONResponse(
+        status_code=status.HTTP_400_BAD_REQUEST,
+        content={"detail": "Database integrity violation (possible duplicate key or constraint violation)."}
     )
 
 # Health endpoint
