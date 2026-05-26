@@ -50,7 +50,7 @@ The application follows a decoupled, API-centric architecture separating the cli
 The repository follows a clean, modular layout to separate concerns:
 
 ```text
-laboratorio/
+clinical_trial/
 ├── backend/                  # API & Database Services (Python + FastAPI)
 │   ├── app/
 │   │   ├── domain/           # Core business entities & pure logic (independent of framework/ORM)
@@ -141,13 +141,13 @@ You can run the entire project's tests consecutively using the cross-platform sc
 #### Backend Tests (Pytest with isolated DB)
 Backend tests execute inside Docker against an isolated SQLite file (`test_clinical_trial.db`), which is automatically set up, seeded, and destroyed on each test session.
 ```bash
-docker exec -e PYTHONPATH=. laboratorio-backend-1 pytest
+docker exec -e PYTHONPATH=. clinical_trial-backend-1 pytest
 ```
 
 #### Frontend Tests (Jest)
 Frontend tests use Jest inside the container to validate component behavior and sanity rules.
 ```bash
-docker exec laboratorio-frontend-1 npm run test
+docker exec clinical_trial-frontend-1 npm run test
 ```
 
 ---
