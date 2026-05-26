@@ -9,6 +9,7 @@ on:
 env:
   JWT_SECRET_KEY: ci_test_secret_key_not_for_production
   ENVIRONMENT: development
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
   # ---------------------------------------------------------------------------
