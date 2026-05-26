@@ -1,6 +1,6 @@
 from datetime import timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlmodel import Session
 
 from app.infrastructure.database import get_db
@@ -22,9 +22,13 @@ router = APIRouter(prefix="/api/v1/auth", tags=["Authentication"])
 _ACCESS_TOKEN_EXPIRE_MINUTES = 15
 
 
+from app.core.limiter import limiter
+
 @router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, session: Session = Depends(get_db)):
+@limiter.limit("5/minute")
+def login(request: Request, payload: LoginRequest, session: Session = Depends(get_db)):
     """Authenticate researcher, persist session, and return access & refresh tokens."""
+
     user = get_user_by_email(session, payload.email)
 
     if not user or not verify_password(payload.password, user.hashed_password):
@@ -62,8 +66,10 @@ def login(payload: LoginRequest, session: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=TokenRefreshResponse)
-def refresh_token(payload: TokenRefreshRequest, session: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def refresh_token(request: Request, payload: TokenRefreshRequest, session: Session = Depends(get_db)):
     """Validate refresh token and issue a new access token and a rotated refresh token."""
+
     db_token = get_active_refresh_token(session, payload.refresh_token)
 
     if not db_token:

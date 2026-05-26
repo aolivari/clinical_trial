@@ -5,9 +5,9 @@ import { ParticipantCreate } from '../../../../types';
 
 export const useAddSubjectPage = () => {
   const [formData, setFormData] = useState<ParticipantCreate>({
-    subject_id: '',
-    study_group: 'treatment',
-    enrollment_date: new Date().toISOString().split('T')[0],
+    subjectId: '',
+    studyGroup: 'treatment',
+    enrollmentDate: new Date().toISOString().split('T')[0],
     status: 'active',
     age: 35,
     gender: 'M',
@@ -28,7 +28,7 @@ export const useAddSubjectPage = () => {
 
     try {
       await createMutation.mutateAsync(formData);
-      setLastRegisteredId(formData.subject_id);
+      setLastRegisteredId(formData.subjectId);
       setShowSuccessModal(true);
     } catch (err) {
       setFormError("Failed to register participant. Subject ID may already exist.");

@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParticipantQuery, useUpdateParticipantMutation } from '../../hooks/useParticipants';
 import { ParticipantCreate, StudyGroup, ParticipantStatus, Gender } from '../../types';
+import { Alert, InputField, Select } from '.';
 
 interface ParticipantDetailsModalProps {
   participantId: string | null;
@@ -16,9 +17,9 @@ export const ParticipantDetailsModal: React.FC<ParticipantDetailsModalProps> = (
 
   const [isEditingDetails, setIsEditingDetails] = useState(false);
   const [editFormData, setEditFormData] = useState<ParticipantCreate>({
-    subject_id: '',
-    study_group: 'treatment',
-    enrollment_date: '',
+    subjectId: '',
+    studyGroup: 'treatment',
+    enrollmentDate: '',
     status: 'active',
     age: 35,
     gender: 'F',
@@ -28,9 +29,9 @@ export const ParticipantDetailsModal: React.FC<ParticipantDetailsModalProps> = (
   useEffect(() => {
     if (participant) {
       setEditFormData({
-        subject_id: participant.subject_id,
-        study_group: participant.study_group,
-        enrollment_date: participant.enrollment_date,
+        subjectId: participant.subjectId,
+        studyGroup: participant.studyGroup,
+        enrollmentDate: participant.enrollmentDate,
         status: participant.status,
         age: participant.age,
         gender: participant.gender,
@@ -97,117 +98,98 @@ export const ParticipantDetailsModal: React.FC<ParticipantDetailsModalProps> = (
               <p className="text-xs text-on-surface-variant font-medium">Fetching participant record from database...</p>
             </div>
           ) : detailsError || saveError ? (
-            <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded-lg flex items-start gap-2">
-              <span className="material-symbols-outlined text-red-500 text-[18px]">error</span>
-              <div>
-                <p className="font-bold">Error occurred</p>
-                <p className="opacity-90">{detailsError?.message || saveError}</p>
-              </div>
-            </div>
+            <Alert
+              message={detailsError?.message || saveError || ""}
+              title="Error occurred"
+            />
           ) : participant ? (
             isEditingDetails ? (
               <div className="space-y-lg">
                 {/* Subject ID Input */}
-                <div className="space-y-1">
-                  <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_subject_id">
-                    Subject ID <span className="text-error">*</span>
-                  </label>
-                  <input 
-                    className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                    id="edit_subject_id"
-                    type="text"
-                    required
-                    value={editFormData.subject_id}
-                    onChange={e => setEditFormData(prev => ({ ...prev, subject_id: e.target.value }))}
-                  />
-                </div>
+                <InputField
+                  id="edit_subject_id"
+                  label="Subject ID"
+                  required
+                  value={editFormData.subjectId}
+                  onChange={e => setEditFormData(prev => ({ ...prev, subjectId: e.target.value }))}
+                  labelClassName="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider"
+                  className="py-2"
+                />
 
                 {/* Age and Gender */}
                 <div className="grid grid-cols-2 gap-md">
-                  <div className="space-y-1">
-                    <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_age">
-                      Age <span className="text-error">*</span>
-                    </label>
-                    <input 
-                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                      id="edit_age"
-                      type="number"
-                      required
-                      min="18"
-                      max="120"
-                      value={editFormData.age}
-                      onChange={e => setEditFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
-                    />
-                  </div>
+                  <InputField
+                    id="edit_age"
+                    label="Age"
+                    type="number"
+                    required
+                    min="18"
+                    max="120"
+                    value={editFormData.age}
+                    onChange={e => setEditFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+                    labelClassName="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider"
+                    className="py-2"
+                  />
 
-                  <div className="space-y-1">
-                    <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_gender">
-                      Gender <span className="text-error">*</span>
-                    </label>
-                    <select 
-                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                      id="edit_gender"
-                      required
-                      value={editFormData.gender}
-                      onChange={e => setEditFormData(prev => ({ ...prev, gender: e.target.value as Gender }))}
-                    >
-                      <option value="M">Male (M)</option>
-                      <option value="F">Female (F)</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="edit_gender"
+                    label="Gender"
+                    required
+                    value={editFormData.gender}
+                    onChange={e => setEditFormData(prev => ({ ...prev, gender: e.target.value as Gender }))}
+                    options={[
+                      { value: "M", label: "Male (M)" },
+                      { value: "F", label: "Female (F)" },
+                      { value: "Other", label: "Other" },
+                    ]}
+                    labelClassName="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider"
+                    className="w-full py-2"
+                  />
                 </div>
 
                 {/* Group and Status */}
                 <div className="grid grid-cols-2 gap-md">
-                  <div className="space-y-1">
-                    <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_study_group">
-                      Study Group <span className="text-error">*</span>
-                    </label>
-                    <select 
-                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                      id="edit_study_group"
-                      required
-                      value={editFormData.study_group}
-                      onChange={e => setEditFormData(prev => ({ ...prev, study_group: e.target.value as StudyGroup }))}
-                    >
-                      <option value="treatment">Treatment</option>
-                      <option value="control">Control</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="edit_study_group"
+                    label="Study Group"
+                    required
+                    value={editFormData.studyGroup}
+                    onChange={e => setEditFormData(prev => ({ ...prev, studyGroup: e.target.value as StudyGroup }))}
+                    options={[
+                      { value: "treatment", label: "Treatment" },
+                      { value: "control", label: "Control" },
+                    ]}
+                    labelClassName="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider"
+                    className="w-full py-2"
+                  />
 
-                  <div className="space-y-1">
-                    <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_status">
-                      Status <span className="text-error">*</span>
-                    </label>
-                    <select 
-                      className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                      id="edit_status"
-                      required
-                      value={editFormData.status}
-                      onChange={e => setEditFormData(prev => ({ ...prev, status: e.target.value as ParticipantStatus }))}
-                    >
-                      <option value="active">Active</option>
-                      <option value="completed">Completed</option>
-                      <option value="withdrawn">Withdrawn</option>
-                    </select>
-                  </div>
+                  <Select
+                    id="edit_status"
+                    label="Status"
+                    required
+                    value={editFormData.status}
+                    onChange={e => setEditFormData(prev => ({ ...prev, status: e.target.value as ParticipantStatus }))}
+                    options={[
+                      { value: "active", label: "Active" },
+                      { value: "completed", label: "Completed" },
+                      { value: "withdrawn", label: "Withdrawn" },
+                    ]}
+                    labelClassName="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider"
+                    className="w-full py-2"
+                  />
                 </div>
 
                 {/* Enrollment Date */}
-                <div className="space-y-1">
-                  <label className="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider" htmlFor="edit_enrollment_date">
-                    Enrollment Date <span className="text-error">*</span>
-                  </label>
-                  <input 
-                    className="w-full bg-white border border-outline-variant rounded-lg px-md py-2 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                    id="edit_enrollment_date"
-                    type="date"
-                    required
-                    value={editFormData.enrollment_date}
-                    onChange={e => setEditFormData(prev => ({ ...prev, enrollment_date: e.target.value }))}
-                  />
-                </div>
+                <InputField
+                  id="edit_enrollment_date"
+                  label="Enrollment Date"
+                  type="date"
+                  required
+                  value={editFormData.enrollmentDate}
+                  onChange={e => setEditFormData(prev => ({ ...prev, enrollmentDate: e.target.value }))}
+                  labelClassName="font-label-sm text-[10px] font-bold text-on-surface-variant uppercase tracking-wider"
+                  className="py-2"
+                />
               </div>
             ) : (
               <div className="space-y-lg">
@@ -215,7 +197,7 @@ export const ParticipantDetailsModal: React.FC<ParticipantDetailsModalProps> = (
                 <div className="flex items-center justify-between border-b border-outline-variant/20 pb-md">
                   <div>
                     <p className="text-[10px] text-on-surface-variant font-bold uppercase tracking-wider">Subject Identifier</p>
-                    <h3 className="font-display-lg text-lg font-bold text-primary font-data-mono">{participant.subject_id}</h3>
+                    <h3 className="font-display-lg text-lg font-bold text-primary font-data-mono">{participant.subjectId}</h3>
                   </div>
                   <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold uppercase ${
                     participant.status === 'active' 
@@ -232,12 +214,12 @@ export const ParticipantDetailsModal: React.FC<ParticipantDetailsModalProps> = (
                 <div className="grid grid-cols-2 gap-md">
                   <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
                     <p className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Study Group</p>
-                    <p className="text-xs font-semibold text-on-surface capitalize mt-0.5">{participant.study_group}</p>
+                    <p className="text-xs font-semibold text-on-surface capitalize mt-0.5">{participant.studyGroup}</p>
                   </div>
 
                   <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
                     <p className="text-[9px] text-on-surface-variant font-bold uppercase tracking-wider">Enrollment Date</p>
-                    <p className="text-xs font-semibold text-on-surface mt-0.5">{formatDateString(participant.enrollment_date)}</p>
+                    <p className="text-xs font-semibold text-on-surface mt-0.5">{formatDateString(participant.enrollmentDate)}</p>
                   </div>
 
                   <div className="bg-slate-50 p-md rounded-lg border border-slate-100">
@@ -270,9 +252,9 @@ export const ParticipantDetailsModal: React.FC<ParticipantDetailsModalProps> = (
                   setIsEditingDetails(false);
                   if (participant) {
                     setEditFormData({
-                      subject_id: participant.subject_id,
-                      study_group: participant.study_group,
-                      enrollment_date: participant.enrollment_date,
+                      subjectId: participant.subjectId,
+                      studyGroup: participant.studyGroup,
+                      enrollmentDate: participant.enrollmentDate,
                       status: participant.status,
                       age: participant.age,
                       gender: participant.gender,

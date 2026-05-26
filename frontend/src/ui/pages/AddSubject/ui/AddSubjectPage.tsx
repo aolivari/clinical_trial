@@ -1,6 +1,7 @@
+import React from 'react';
 import { StudyGroup, ParticipantStatus, Gender } from '../../../../types';
-
 import { useAddSubjectPage } from '../hooks/useAddSubjectPage';
+import { Alert, InputField, Select, SuccessModal } from '../../../components';
 
 export const AddSubjectPage: React.FC = () => {
   const {
@@ -38,115 +39,88 @@ export const AddSubjectPage: React.FC = () => {
           <form className="space-y-lg" onSubmit={handleSubmit}>
             
             {formError && (
-              <div className="bg-red-50 border border-red-200 text-red-800 text-xs p-3 rounded-lg">
-                {formError}
-              </div>
+              <Alert message={formError} />
             )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-lg">
               
               {/* Subject ID */}
-              <div className="space-y-1">
-                <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="subject_id">
-                  Subject ID <span className="text-error">*</span>
-                </label>
-                <input 
-                  className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  id="subject_id"
-                  type="text"
-                  required
-                  placeholder="e.g. P007"
-                  value={formData.subject_id}
-                  onChange={e => setFormData(prev => ({ ...prev, subject_id: e.target.value }))}
-                />
-                <p className="text-[10px] text-on-surface-variant/60">Unique identifier as per trial protocol.</p>
-              </div>
+              <InputField
+                id="subject_id"
+                label="Subject ID"
+                required
+                placeholder="e.g. P007"
+                value={formData.subjectId}
+                onChange={e => setFormData(prev => ({ ...prev, subjectId: e.target.value }))}
+                helperText="Unique identifier as per trial protocol."
+              />
 
               {/* Enrollment Date */}
-              <div className="space-y-1">
-                <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="enrollment_date">
-                  Enrollment Date <span className="text-error">*</span>
-                </label>
-                <input 
-                  className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  id="enrollment_date"
-                  type="date"
-                  required
-                  value={formData.enrollment_date}
-                  onChange={e => setFormData(prev => ({ ...prev, enrollment_date: e.target.value }))}
-                />
-              </div>
+              <InputField
+                id="enrollment_date"
+                label="Enrollment Date"
+                type="date"
+                required
+                value={formData.enrollmentDate}
+                onChange={e => setFormData(prev => ({ ...prev, enrollmentDate: e.target.value }))}
+              />
 
               {/* Study Group */}
-              <div className="space-y-1">
-                <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="study_group">
-                  Study Group <span className="text-error">*</span>
-                </label>
-                <select 
-                  className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  id="study_group"
-                  required
-                  value={formData.study_group}
-                  onChange={e => setFormData(prev => ({ ...prev, study_group: e.target.value as StudyGroup }))}
-                >
-                  <option value="treatment">Treatment</option>
-                  <option value="control">Control</option>
-                </select>
-              </div>
+              <Select
+                id="study_group"
+                label="Study Group"
+                required
+                value={formData.studyGroup}
+                onChange={e => setFormData(prev => ({ ...prev, studyGroup: e.target.value as StudyGroup }))}
+                options={[
+                  { value: "treatment", label: "Treatment" },
+                  { value: "control", label: "Control" },
+                ]}
+                className="w-full"
+              />
 
               {/* Status */}
-              <div className="space-y-1">
-                <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="status">
-                  Status <span className="text-error">*</span>
-                </label>
-                <select 
-                  className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  id="status"
-                  required
-                  value={formData.status}
-                  onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as ParticipantStatus }))}
-                >
-                  <option value="active">Active</option>
-                  <option value="completed">Completed</option>
-                  <option value="withdrawn">Withdrawn</option>
-                </select>
-              </div>
+              <Select
+                id="status"
+                label="Status"
+                required
+                value={formData.status}
+                onChange={e => setFormData(prev => ({ ...prev, status: e.target.value as ParticipantStatus }))}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "completed", label: "Completed" },
+                  { value: "withdrawn", label: "Withdrawn" },
+                ]}
+                className="w-full"
+              />
 
               {/* Age */}
-              <div className="space-y-1">
-                <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="age">
-                  Age <span className="text-error">*</span>
-                </label>
-                <input 
-                  className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  id="age"
-                  type="number"
-                  required
-                  min="18"
-                  max="120"
-                  placeholder="Min 18"
-                  value={formData.age}
-                  onChange={e => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
-                />
-              </div>
+              <InputField
+                id="age"
+                label="Age"
+                type="number"
+                required
+                min="18"
+                max="120"
+                placeholder="Min 18"
+                value={formData.age}
+                onChange={e => setFormData(prev => ({ ...prev, age: parseInt(e.target.value) || 0 }))}
+              />
 
               {/* Gender */}
-              <div className="space-y-1">
-                <label className="font-label-sm text-xs font-semibold text-on-surface-variant" htmlFor="gender">
-                  Gender <span className="text-error">*</span>
-                </label>
-                <select 
-                  className="w-full bg-white border border-outline-variant rounded-lg px-md py-2.5 text-xs text-on-surface focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
-                  id="gender"
-                  required
-                  value={formData.gender}
-                  onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value as Gender }))}
-                >
-                  <option value="M">Male (M)</option>
-                  <option value="F">Female (F)</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
+              <Select
+                id="gender"
+                label="Gender"
+                required
+                value={formData.gender}
+                onChange={e => setFormData(prev => ({ ...prev, gender: e.target.value as Gender }))}
+                options={[
+                  { value: "M", label: "Male (M)" },
+                  { value: "F", label: "Female (F)" },
+                  { value: "Other", label: "Other" },
+                ]}
+                className="w-full"
+              />
 
             </div>
 
@@ -172,9 +146,9 @@ export const AddSubjectPage: React.FC = () => {
                 type="button"
                 onClick={() => {
                   setFormData({
-                    subject_id: '',
-                    study_group: 'treatment',
-                    enrollment_date: new Date().toISOString().split('T')[0],
+                    subjectId: '',
+                    studyGroup: 'treatment',
+                    enrollmentDate: new Date().toISOString().split('T')[0],
                     status: 'active',
                     age: 35,
                     gender: 'F',
@@ -247,27 +221,17 @@ export const AddSubjectPage: React.FC = () => {
       </div>
 
       {/* Success Modal Overlay (Add Subject confirmation) */}
-      {showSuccessModal && (
-        <div className="fixed inset-0 bg-on-surface/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 animate-fade-in">
-          <div className="bg-white rounded-xl shadow-2xl max-w-sm w-full p-xl text-center transform scale-100 transition-transform duration-300 border border-outline-variant/30">
-            <div className="w-14 h-14 bg-primary/10 rounded-full flex items-center justify-center mx-auto mb-lg text-primary">
-              <span className="material-symbols-outlined text-4xl" style={{ fontVariationSettings: "'FILL' 1" }}>verified</span>
-            </div>
-            
-            <h2 className="font-display-lg text-lg font-bold text-on-surface mb-2">Registration Successful</h2>
-            <p className="font-body-md text-xs text-on-surface-variant mb-6 leading-relaxed">
-              Subject <span className="font-bold text-primary">{lastRegisteredId}</span> has been successfully enrolled in the Phase III trial.
-            </p>
-            
-            <button 
-              className="w-full bg-primary hover:bg-primary-container text-on-primary py-2.5 rounded-lg font-semibold text-xs shadow-md transition-colors"
-              onClick={onNavigateDashboard}
-            >
-              Continue to Dashboard
-            </button>
-          </div>
-        </div>
-      )}
+      <SuccessModal
+        isOpen={showSuccessModal}
+        title="Registration Successful"
+        description={
+          <>
+            Subject <span className="font-bold text-primary">{lastRegisteredId}</span> has been successfully enrolled in the Phase III trial.
+          </>
+        }
+        actionText="Continue to Dashboard"
+        onAction={onNavigateDashboard}
+      />
 
     </div>
   );

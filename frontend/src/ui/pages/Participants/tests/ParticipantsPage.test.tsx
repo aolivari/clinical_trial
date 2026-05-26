@@ -51,9 +51,9 @@ describe("ParticipantsPage Component", () => {
       data: {
         items: [
           {
-            participant_id: "1",
-            subject_id: "P001",
-            study_group: "treatment",
+            participantId: "1",
+            subjectId: "P001",
+            studyGroup: "treatment",
             status: "active",
           },
         ],
@@ -74,15 +74,15 @@ describe("ParticipantsPage Component", () => {
       data: {
         items: [
           {
-            participant_id: "1",
-            subject_id: "P001",
-            study_group: "treatment",
+            participantId: "1",
+            subjectId: "P001",
+            studyGroup: "treatment",
             status: "active",
           },
           {
-            participant_id: "2",
-            subject_id: "P002",
-            study_group: "control",
+            participantId: "2",
+            subjectId: "P002",
+            studyGroup: "control",
             status: "completed",
           },
         ],
@@ -114,9 +114,9 @@ describe("ParticipantsPage Component", () => {
       data: {
         items: [
           {
-            participant_id: "1",
-            subject_id: "P001",
-            study_group: "treatment",
+            participantId: "1",
+            subjectId: "P001",
+            studyGroup: "treatment",
             status: "active",
           },
         ],

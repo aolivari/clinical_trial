@@ -1,12 +1,16 @@
 import os
 import pytest
 from sqlmodel import SQLModel
+from fastapi.testclient import TestClient
 
 # Configure environment variables before importing app components
 # This ensures that engine and configuration are loaded with the test database path.
 os.environ["DATABASE_URL"] = "sqlite:///./test_clinical_trial.db"
+os.environ["TESTING"] = "true"
+
 
 from app.infrastructure.database import engine
+from app.main import app
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_test_database():
@@ -21,9 +25,8 @@ def setup_test_database():
     # Force creation of database and tables
     SQLModel.metadata.create_all(engine)
     
-    # Import client and enter its context to trigger FastAPI lifespan (which seeds the DB)
-    from tests.test_main import client
-    with client:
+    # Trigger FastAPI lifespan (which seeds the DB)
+    with TestClient(app):
         yield
     
     # Dispose all connections so SQLite releases the file lock
@@ -35,3 +38,9 @@ def setup_test_database():
             os.remove(db_file)
         except Exception:
             pass
+
+@pytest.fixture(scope="session")
+def client():
+    """Shared TestClient fixture."""
+    with TestClient(app) as c:
+        yield c

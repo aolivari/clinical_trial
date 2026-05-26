@@ -2,8 +2,22 @@ import { useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useParticipantsQuery } from '../../../../hooks/useParticipants';
 import { useMetricsQuery } from '../../../../hooks/useMetrics';
+import { Participant, TrialMetrics } from '../../../../types';
 
-export const useDashboardPage = () => {
+export interface UseDashboardPageResult {
+  filteredParticipants: Participant[];
+  totalItems: number;
+  isLoading: boolean;
+  metricsLoading: boolean;
+  error: Error | null;
+  metrics: TrialMetrics | undefined;
+  searchTerm: string;
+  selectedParticipantId: string | null;
+  setSelectedParticipantId: React.Dispatch<React.SetStateAction<string | null>>;
+  refetch: () => void;
+}
+
+export const useDashboardPage = (): UseDashboardPageResult => {
   const [searchParams] = useSearchParams();
   const searchTerm = searchParams.get('search') || '';
 
@@ -12,16 +26,12 @@ export const useDashboardPage = () => {
   const { data: metrics, isLoading: metricsLoading } = useMetricsQuery();
   const [selectedParticipantId, setSelectedParticipantId] = useState<string | null>(null);
 
-  const handleExportData = () => {
-    alert('Mock CSV Export Completed');
-  };
-
-  const participants = data?.items || [];
+  const participants: Participant[] = data?.items || [];
   const totalItems = data?.total || 0;
 
   // Filter participants based on search query parameter (client-side)
   const filteredParticipants = participants.filter(p => {
-    return p.subject_id.toLowerCase().includes(searchTerm.toLowerCase());
+    return p.subjectId.toLowerCase().includes(searchTerm.toLowerCase());
   });
 
   return {
@@ -34,7 +44,8 @@ export const useDashboardPage = () => {
     searchTerm,
     selectedParticipantId,
     setSelectedParticipantId,
-    handleExportData,
-    refetch,
+    refetch: () => {
+      refetch();
+    },
   };
 };

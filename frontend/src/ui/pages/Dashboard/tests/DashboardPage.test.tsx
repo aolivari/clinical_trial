@@ -26,18 +26,18 @@ describe("DashboardPage Component", () => {
   const mockRefetch = jest.fn();
 
   const mockMetrics = {
-    total_participants: 6,
-    active_count: 4,
-    completed_count: 1,
-    withdrawn_count: 1,
-    treatment_count: 3,
-    control_count: 3,
-    male_count: 3,
-    female_count: 3,
-    other_gender_count: 0,
-    retention_rate: 83.3,
-    completion_rate: 16.7,
-    avg_age: 44.8,
+    totalParticipants: 6,
+    activeCount: 4,
+    completedCount: 1,
+    withdrawnCount: 1,
+    treatmentCount: 3,
+    controlCount: 3,
+    maleCount: 3,
+    femaleCount: 3,
+    otherGenderCount: 0,
+    retentionRate: 83.3,
+    completionRate: 16.7,
+    avgAge: 44.8,
   };
 
   beforeEach(() => {
@@ -54,9 +54,9 @@ describe("DashboardPage Component", () => {
       data: {
         items: [
           {
-            participant_id: "1",
-            subject_id: "P001",
-            study_group: "treatment",
+            participantId: "1",
+            subjectId: "P001",
+            studyGroup: "treatment",
             status: "active",
           },
         ],
@@ -82,9 +82,9 @@ describe("DashboardPage Component", () => {
     render(<DashboardPage />);
 
     // Verify KPI values rendered from mock metrics
-    expect(screen.getByText("6")).toBeInTheDocument(); // total_participants
-    expect(screen.getAllByText("83.3%")[0]).toBeInTheDocument(); // retention_rate (one of them)
-    expect(screen.getByText("44.8 yrs")).toBeInTheDocument(); // avg_age
+    expect(screen.getByText("6")).toBeInTheDocument(); // totalParticipants
+    expect(screen.getAllByText("83.3%")[0]).toBeInTheDocument(); // retentionRate (one of them)
+    expect(screen.getByText("44.8 yrs")).toBeInTheDocument(); // avgAge
   });
 
   it("filters participants based on search query", () => {
@@ -95,15 +95,15 @@ describe("DashboardPage Component", () => {
       data: {
         items: [
           {
-            participant_id: "1",
-            subject_id: "P001",
-            study_group: "treatment",
+            participantId: "1",
+            subjectId: "P001",
+            studyGroup: "treatment",
             status: "active",
           },
           {
-            participant_id: "2",
-            subject_id: "P002",
-            study_group: "control",
+            participantId: "2",
+            subjectId: "P002",
+            studyGroup: "control",
             status: "completed",
           },
         ],

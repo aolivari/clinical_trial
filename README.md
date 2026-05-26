@@ -53,50 +53,25 @@ The repository follows a clean, modular layout to separate concerns:
 laboratorio/
 ├── backend/                  # API & Database Services (Python + FastAPI)
 │   ├── app/
-│   │   ├── application/      # Use cases and operations (CRUD logic)
-│   │   ├── domain/           # Core business logic and schemas
-│   │   ├── infrastructure/   # Database, models, and external services
-│   │   ├── presentation/     # FastAPI routers and external entrypoints
-│   │   └── main.py           # Application entry point & lifespan events
-│   ├── tests/                # Automated API integration and unit tests
-│   ├── Dockerfile            # Optimized backend build recipe
-│   └── requirements.txt      # Python package dependencies
-├── frontend/                 # User Interface Client (React + TS + Vite + Tailwind CSS)
-│   ├── src/
-│   │   ├── api/
-│   │   │   └── client.ts     # Axios client equipped with automated JWT request interceptor
-│   │   ├── context/
-│   │   │   └── AuthContext.tsx # React Context for global auth state and hooks (useAuth)
-│   │   ├── types/
-│   │   │   └── index.ts      # Strictly-typed domain models and API payload contracts
-│   │   ├── services/
-│   │   │   ├── auth.service.ts       # Service layer for authentication endpoints
-│   │   │   └── participant.service.ts # Service layer for participant CRUD queries
-│   │   ├── hooks/
-│   │   │   └── useParticipants.ts    # Custom TanStack Query queries & mutations
-│   │   ├── routes/
-│   │   │   └── AppRoutes.tsx # App route configuration & protected route guards
-│   │   ├── ui/
-│   │   │   ├── components/   # Reusable UI widgets (e.g., ParticipantDetailsModal)
-│   │   │   ├── layouts/      # Dashboard layouts (e.g., AppLayout sidebar and header)
-│   │   │   └── pages/        # Feature-Sliced modules (Hooks + UI Components)
-│   │   ├── App.tsx           # Entry wrapper for global QueryClient and Router Providers
-│   │   ├── index.css         # Tailwind injection & custom styled scrollbars
-│   │   ├── vite-env.d.ts     # Vite environment variables typings
-│   │   └── main.tsx          # React application mount script
-│   ├── index.html            # Core HTML template containing Google Material Symbols
-│   ├── tailwind.config.js    # System design color tokens config
-│   ├── postcss.config.js     # PostCSS configurations
-│   ├── tsconfig.json         # Strict TypeScript compiler options
-│   └── Dockerfile            # Node 20 Slim development image
-├── .github/
-│   └── workflows/
-│       └── ci.yml            # CI/CD pipeline (lint, test, Docker build)
-├── docker-compose.yml        # Multi-container local execution orchestrator
-├── run_tests.ps1             # PowerShell script to run all tests in Docker
-├── run_tests.sh              # Bash script to run all tests in Docker
-├── .gitignore                # Git exclusions rules for local caches and databases
-└── README.md                 # Primary documentation (this file)
+│   │   ├── domain/           # Core business entities & pure logic (independent of framework/ORM)
+│   │   ├── application/      # Use cases & workflows (e.g. participant CRUD, metrics aggregation)
+│   │   ├── infrastructure/   # External details: DB models (SQLModel), seeders, DB configuration
+│   │   ├── presentation/     # FastAPI routers, exception handlers, API schemas
+│   │   ├── core/             # Shared cross-cutting concerns (logging, security, rate limiter, config)
+│   │   └── main.py           # App bootstrap, CORS setup, and lifecycle events
+│   └── tests/                # Segregated unit/integration tests (test_auth.py, test_participants.py, etc.)
+└── frontend/                 # User Interface Client (React + TS + Vite)
+    ├── src/
+    │   ├── types/            # Decoupled data contracts
+    │   │   ├── api/          # Snake-case backend DTO contracts
+    │   │   ├── models/       # CamelCase UI domain entities
+    │   │   └── mappers/      # Pure functions mapping api DTOs <-> UI models at boundaries
+    │   ├── services/         # Layer communicating with API, applying mappers
+    │   ├── ui/               # Visual layout and component structure
+    │   │   ├── components/   # Reusable, atomic widgets (InputField, Select, Alert, Modal)
+    │   │   ├── layouts/      # Visual structure wrappers (Sidebar, Dashboard layout)
+    │   │   └── pages/        # Views (Dashboard, Participants) utilizing custom page state/hooks
+    │   └── main.tsx          # Client entrypoint
 ```
 
 ---
@@ -206,10 +181,13 @@ The Docker build stage only runs after both test suites pass, ensuring broken co
 *   **Multi-container Orchestration**: Set up `docker-compose.yml` to build and serve the application globally.
 *   **Unified Testing Scripts**: Created root PowerShell and Bash scripts to run both test suites in one step.
 *   **CI/CD Pipeline**: Created a GitHub Actions workflow with three stages: backend tests (pytest), frontend tests + build (jest + vite), and Docker build verification.
+*   **AddSubject Unit Tests**: Implemented comprehensive unit tests for both `AddSubjectPage` React component and its custom hook `useAddSubjectPage` to ensure robust form validation, loading states, error handling, and modal redirection.
 
 ### Skipped Scope
 *   **Advanced Charting**: While KPI metrics are computed from live data, visual chart components (e.g., bar charts, pie charts) are not implemented in this version. A library like Recharts or Nivo could be integrated in a future iteration.
 *   **Server-Side Pagination & Filtering**: Search filtering is done client-side over the fetched page. In production, search terms would be passed to the backend as query parameters.
+*   **Data Export (CSV/Excel)**: Exporting participant records is not implemented in this version. The mock export button placeholder has been removed to maintain data-integrity expectations.
+*   **Multi-country Operations (Global Impact)**: Demographics and centers are currently scoped locally; mock country markers ("Global Impact" map block) were removed to keep dashboard data strictly authentic to the local database.
 
 ---
 
@@ -228,6 +206,7 @@ If given more time, we would implement the following production-ready features:
 2. **Distributed Tracing with OpenTelemetry**: Instrument FastAPI and Axios endpoints to dispatch traces to collectors (Jaeger or AWS X-Ray) for end-to-end latency analysis.
 3. **Structured Logging (JSON)**: Replace standard python logging formatters with `structlog` to output structured JSON logs, optimizing ingestion into aggregators like Datadog, Kibana, or Grafana Loki.
 4. **Third-Party Identity Provider (IdP)**: Replace local credentials and token issuance with an OAuth2/OIDC-compliant provider like Auth0 or Keycloak.
+5. **Componentization and Scalability**: Continue creating and modularizing highly reusable UI components (extending the current set of shared components like `Tag`, `KpiCard`, `GenericTable`, etc.) to enhance frontend scalability, reduce code duplication, and maintain visual consistency across future application modules.
 
 ---
 

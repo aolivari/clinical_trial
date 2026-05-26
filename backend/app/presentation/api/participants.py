@@ -61,7 +61,7 @@ def register_participant(participant_in: ParticipantCreate, session: Session = D
     return result
 
 
-@router.put("/{participant_id}", response_model=ParticipantResponse)
+@router.patch("/{participant_id}", response_model=ParticipantResponse)
 def edit_participant(
     participant_id: UUID,
     participant_in: ParticipantUpdate,

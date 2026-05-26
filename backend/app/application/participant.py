@@ -49,14 +49,15 @@ def create_participant(session: Session, data: ParticipantCreate) -> Participant
 
     The caller is responsible for checking uniqueness constraints before
     calling this function (e.g. duplicate subject_id).
+    Enum fields are stored natively — no manual .value conversion required.
     """
     db_participant = Participant(
         subject_id=data.subject_id,
-        study_group=data.study_group.value.lower(),
+        study_group=data.study_group,
         enrollment_date=data.enrollment_date,
-        status=data.status.value.lower(),
+        status=data.status,
         age=data.age,
-        gender=data.gender.value,
+        gender=data.gender,
     )
     session.add(db_participant)
     session.commit()
@@ -72,15 +73,11 @@ def update_participant(
     """
     Apply a partial update to an existing Participant and persist the changes.
 
-    Enum fields (study_group, status, gender) are stored as their raw string
-    values; all other fields are set as-is.
+    Enum fields are stored natively by the ORM — no manual .value conversion needed.
     """
     update_data = data.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if key in {"study_group", "status", "gender"} and value is not None:
-            setattr(db_participant, key, value.value)
-        else:
-            setattr(db_participant, key, value)
+        setattr(db_participant, key, value)
 
     session.add(db_participant)
     session.commit()
